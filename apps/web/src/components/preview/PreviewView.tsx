@@ -46,6 +46,7 @@ import {
 import { resolveResponsiveBrowserViewportSize } from "~/browser/browserViewportLayout";
 import { previewRuntimeTabId } from "~/browser/previewRuntimeTabId";
 import { PreviewUnreachable } from "./PreviewUnreachable";
+import { WebBrowserFrame } from "./WebBrowserFrame";
 import { revealInFileExplorerLabel } from "./fileExplorerLabel";
 import { shouldShowPreviewEmptyState } from "./previewEmptyStateLogic";
 import { BrowserSurfaceSlot } from "~/browser/BrowserSurfaceSlot";
@@ -87,6 +88,7 @@ export function PreviewView({
   onSendAnnotation,
 }: Props) {
   const [focusUrlNonce, setFocusUrlNonce] = useState<number | undefined>(undefined);
+  const [webFrameGeneration, setWebFrameGeneration] = useState(0);
   const [pickActive, setPickActive] = useState(false);
   const activeRecordingTabIds = useActiveBrowserRecordingTabIds();
   const pickActiveRef = useRef(false);
@@ -202,7 +204,11 @@ export function PreviewView({
   );
 
   const handleRefresh = useCallback(() => {
-    if (previewBridge && runtimeTabId) void previewBridge.refresh(runtimeTabId);
+    if (previewBridge && runtimeTabId) {
+      void previewBridge.refresh(runtimeTabId);
+      return;
+    }
+    setWebFrameGeneration((generation) => generation + 1);
   }, [runtimeTabId]);
 
   const handleZoomIn = useCallback(() => {
@@ -701,12 +707,20 @@ export function PreviewView({
 
       <div className="relative min-h-0 flex-1 overflow-hidden">
         {runtimeTabId && snapshot && !showEmptyState ? (
-          <BrowserSurfaceSlot
-            key={runtimeTabId}
-            tabId={runtimeTabId}
-            visible={visible && !isUnreachable}
-            className="absolute inset-0 h-full w-full"
-          />
+          previewBridge ? (
+            <BrowserSurfaceSlot
+              key={runtimeTabId}
+              tabId={runtimeTabId}
+              visible={visible && !isUnreachable}
+              className="absolute inset-0 h-full w-full"
+            />
+          ) : (
+            <WebBrowserFrame
+              runtimeTabId={runtimeTabId}
+              url={url}
+              generation={webFrameGeneration}
+            />
+          )
         ) : null}
         {showEmptyState ? (
           <PreviewEmptyState
