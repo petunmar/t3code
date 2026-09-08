@@ -72,7 +72,11 @@ import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 
-import { resolveAttachmentPath } from "../../attachmentStore.ts";
+import {
+  appendResolvedFileAttachmentsToPrompt,
+  resolveAttachmentPath,
+  type ResolvedFileAttachment,
+} from "../../attachmentStore.ts";
 import { ServerConfig } from "../../config.ts";
 import * as McpProviderSession from "../../mcp/McpProviderSession.ts";
 import { resolveClaudeSdkExecutablePath } from "../Drivers/ClaudeExecutable.ts";
@@ -1228,24 +1232,10 @@ const buildUserMessageEffect = Effect.fn("buildUserMessageEffect")(function* (
 ) {
   const text = buildPromptText(input, dependencies.boundInstanceId);
   const sdkContent: Array<Record<string, unknown>> = [];
-
-  if (text.length > 0) {
-    sdkContent.push({ type: "text", text });
-  }
+  const imageContent: Array<Record<string, unknown>> = [];
+  const files: ResolvedFileAttachment[] = [];
 
   for (const attachment of input.attachments ?? []) {
-    if (attachment.type !== "image") {
-      continue;
-    }
-
-    if (!SUPPORTED_CLAUDE_IMAGE_MIME_TYPES.has(attachment.mimeType)) {
-      return yield* new ProviderAdapterRequestError({
-        provider: PROVIDER,
-        method: "turn/start",
-        detail: `Unsupported Claude image attachment type '${attachment.mimeType}'.`,
-      });
-    }
-
     const attachmentPath = resolveAttachmentPath({
       attachmentsDir: dependencies.attachmentsDir,
       attachment,
@@ -1255,6 +1245,18 @@ const buildUserMessageEffect = Effect.fn("buildUserMessageEffect")(function* (
         provider: PROVIDER,
         method: "turn/start",
         detail: `Invalid attachment id '${attachment.id}'.`,
+      });
+    }
+    if (attachment.type === "file") {
+      files.push({ attachment, path: attachmentPath });
+      continue;
+    }
+
+    if (!SUPPORTED_CLAUDE_IMAGE_MIME_TYPES.has(attachment.mimeType)) {
+      return yield* new ProviderAdapterRequestError({
+        provider: PROVIDER,
+        method: "turn/start",
+        detail: `Unsupported Claude image attachment type '${attachment.mimeType}'.`,
       });
     }
 
@@ -1270,13 +1272,19 @@ const buildUserMessageEffect = Effect.fn("buildUserMessageEffect")(function* (
       ),
     );
 
-    sdkContent.push(
+    imageContent.push(
       buildClaudeImageContentBlock({
         mimeType: attachment.mimeType,
         bytes,
       }),
     );
   }
+
+  const prompt = appendResolvedFileAttachmentsToPrompt(text, files);
+  if (prompt) {
+    sdkContent.push({ type: "text", text: prompt });
+  }
+  sdkContent.push(...imageContent);
 
   return buildUserMessage({ sdkContent });
 });

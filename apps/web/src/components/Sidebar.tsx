@@ -285,7 +285,13 @@ function SidebarThreadTooltip({
       className="max-w-80 text-left whitespace-normal [&_[data-slot=tooltip-viewport]]:p-0"
     >
       <div className="flex min-w-0 max-w-80 flex-col gap-2 p-[var(--floating-content-inset)]">
-        <div className="min-w-0 truncate text-xs leading-none font-medium text-foreground">
+        <div
+          className={cn(
+            "min-w-0 truncate text-xs leading-none font-medium text-foreground",
+            thread.origin?.type === "automation" && "text-blue-600 dark:text-blue-400",
+            thread.origin?.type === "webhook" && "text-violet-600 dark:text-violet-400",
+          )}
+        >
           {thread.title}
         </div>
         <div className="grid gap-1.5 pl-0.5 text-xs text-muted-foreground">
@@ -846,6 +852,8 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
                   : "text-secondary-label/70",
             ),
         isRegeneratingTitle && "opacity-[0.55]",
+        thread.origin?.type === "automation" && "text-blue-600 dark:text-blue-400",
+        thread.origin?.type === "webhook" && "text-violet-600 dark:text-violet-400",
       )}
     >
       {thread.title}
@@ -1332,7 +1340,15 @@ const SidebarSearchResultRow = memo(function SidebarSearchResultRow(props: {
             className="size-4 shrink-0"
             fallbackIcon={MessageSquareIcon}
           />
-          <span className="min-w-0 flex-1 truncate">{thread.title}</span>
+          <span
+            className={cn(
+              "min-w-0 flex-1 truncate",
+              thread.origin?.type === "automation" && "text-blue-600 dark:text-blue-400",
+              thread.origin?.type === "webhook" && "text-violet-600 dark:text-violet-400",
+            )}
+          >
+            {thread.title}
+          </span>
           <span className="shrink-0 text-xs text-muted-foreground/55 tabular-nums">
             {threadTimeLabel(thread)}
           </span>

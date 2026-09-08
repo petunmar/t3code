@@ -52,7 +52,10 @@ import {
   type ProviderAdapterError,
 } from "../Errors.ts";
 import { type CodexAdapterShape } from "../Services/CodexAdapter.ts";
-import { resolveAttachmentPath } from "../../attachmentStore.ts";
+import {
+  appendResolvedFileAttachmentsToPrompt,
+  resolveAttachmentPath,
+} from "../../attachmentStore.ts";
 import { ServerConfig } from "../../config.ts";
 import {
   CodexResumeCursorSchema,
@@ -1765,7 +1768,6 @@ export const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
     );
 
   const resolveAttachment = Effect.fn("resolveAttachment")(function* (
-    input: ProviderSendTurnInput,
     attachment: NonNullable<ProviderSendTurnInput["attachments"]>[number],
   ) {
     const attachmentPath = resolveAttachmentPath({
@@ -1779,6 +1781,9 @@ export const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
         detail: `Invalid attachment id '${attachment.id}'.`,
       });
     }
+    if (attachment.type === "file") {
+      return { type: "file" as const, attachment, path: attachmentPath };
+    }
     const bytes = yield* fileSystem.readFile(attachmentPath).pipe(
       Effect.mapError(
         (cause) =>
@@ -1791,16 +1796,24 @@ export const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
       ),
     );
     return {
-      type: "image" as const,
-      url: `data:${attachment.mimeType};base64,${Buffer.from(bytes).toString("base64")}`,
+      type: "resolved-image" as const,
+      input: {
+        type: "image" as const,
+        url: `data:${attachment.mimeType};base64,${Buffer.from(bytes).toString("base64")}`,
+      },
     };
   });
 
   const sendTurn: CodexAdapterShape["sendTurn"] = Effect.fn("sendTurn")(function* (input) {
-    const codexAttachments = yield* Effect.forEach(
-      input.attachments ?? [],
-      (attachment) => resolveAttachment(input, attachment),
-      { concurrency: 1 },
+    const resolvedAttachments = yield* Effect.forEach(input.attachments ?? [], resolveAttachment, {
+      concurrency: 1,
+    });
+    const codexAttachments = resolvedAttachments.flatMap((attachment) =>
+      attachment.type === "resolved-image" ? [attachment.input] : [],
+    );
+    const prompt = appendResolvedFileAttachmentsToPrompt(
+      input.input,
+      resolvedAttachments.flatMap((attachment) => (attachment.type === "file" ? [attachment] : [])),
     );
 
     const session = yield* requireSession(input.threadId);
@@ -1814,7 +1827,7 @@ export const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
         : undefined;
     return yield* session.runtime
       .sendTurn({
-        ...(input.input !== undefined ? { input: input.input } : {}),
+        ...(prompt !== undefined ? { input: prompt } : {}),
         ...(input.modelSelection?.instanceId === boundInstanceId
           ? { model: input.modelSelection.model }
           : {}),

@@ -287,6 +287,7 @@ export function projectEvent(
             modelSelection: payload.modelSelection,
             runtimeMode: payload.runtimeMode,
             interactionMode: payload.interactionMode,
+            origin: payload.origin ?? null,
             branch: payload.branch,
             worktreePath: payload.worktreePath,
             latestTurn: null,

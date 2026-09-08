@@ -100,6 +100,11 @@ const collectQueueUntil = Effect.fn("TransferBudget.collectQueueUntil")(function
 });
 
 import * as BackgroundPolicy from "./background/BackgroundPolicy.ts";
+import * as AutomationRunner from "./automation/AutomationRunner.ts";
+import * as AutomationScheduler from "./automation/AutomationScheduler.ts";
+import * as AutomationService from "./automation/AutomationService.ts";
+import * as WebhookRunner from "./webhook/WebhookRunner.ts";
+import * as WebhookService from "./webhook/WebhookService.ts";
 import * as ServerConfig from "./config.ts";
 import { makeRoutesLayer } from "./server.ts";
 import { isThreadDetailEvent, resolveAvailableEditorsForConfig } from "./ws.ts";
@@ -108,6 +113,7 @@ import * as GitManager from "./git/GitManager.ts";
 import * as Keybindings from "./keybindings.ts";
 import * as ExternalLauncher from "./process/externalLauncher.ts";
 import * as OrchestrationEngine from "./orchestration/Services/OrchestrationEngine.ts";
+import * as BootstrapTurnLauncher from "./orchestration/BootstrapTurnLauncher.ts";
 import { OrchestrationListenerCallbackError } from "./orchestration/Errors.ts";
 import * as ProjectionSnapshotQuery from "./orchestration/Services/ProjectionSnapshotQuery.ts";
 import { SqlitePersistenceMemory } from "./persistence/Layers/Sqlite.ts";
@@ -616,14 +622,22 @@ const buildAppUnderTest = (options?: {
       },
     ).pipe(
       Layer.provide(
-        Layer.mock(Keybindings.Keybindings)({
-          loadConfigState: Effect.succeed({
-            keybindings: [],
-            issues: [],
+        Layer.mergeAll(
+          Layer.mock(AutomationService.AutomationService)({}),
+          Layer.mock(AutomationRunner.AutomationRunner)({}),
+          Layer.mock(AutomationScheduler.AutomationScheduler)({}),
+          Layer.mock(WebhookService.WebhookService)({}),
+          Layer.mock(WebhookRunner.WebhookRunner)({}),
+          Layer.mock(BootstrapTurnLauncher.BootstrapTurnLauncher)({}),
+          Layer.mock(Keybindings.Keybindings)({
+            loadConfigState: Effect.succeed({
+              keybindings: [],
+              issues: [],
+            }),
+            streamChanges: Stream.empty,
+            ...options?.layers?.keybindings,
           }),
-          streamChanges: Stream.empty,
-          ...options?.layers?.keybindings,
-        }),
+        ),
       ),
       Layer.provide(
         Layer.mock(ProviderRegistry.ProviderRegistry)({

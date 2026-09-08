@@ -75,7 +75,7 @@ import { useDesktopLocalBootstraps } from "../connection/useDesktopLocalBootstra
 import { isElectron } from "../env";
 import { useOpenPrLink } from "../lib/openPullRequestLink";
 import { isTerminalFocused } from "../lib/terminalFocus";
-import { isMacPlatform } from "../lib/utils";
+import { cn, isMacPlatform } from "../lib/utils";
 import {
   readThreadShell,
   useProject,
@@ -713,7 +713,11 @@ export const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThr
               <TooltipTrigger
                 render={
                   <span
-                    className="min-w-0 flex-1 truncate text-sm"
+                    className={cn(
+                      "min-w-0 flex-1 truncate text-sm",
+                      thread.origin?.type === "automation" && "text-blue-600 dark:text-blue-400",
+                      thread.origin?.type === "webhook" && "text-violet-600 dark:text-violet-400",
+                    )}
                     data-testid={`thread-title-${thread.id}`}
                   >
                     {thread.title}

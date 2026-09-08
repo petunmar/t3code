@@ -9,6 +9,12 @@ import * as HttpApiBuilder from "effect/unstable/httpapi/HttpApiBuilder";
 
 import * as BackgroundPolicy from "./background/BackgroundPolicy.ts";
 import * as HostPowerMonitor from "./background/HostPowerMonitor.ts";
+import * as AutomationRunner from "./automation/AutomationRunner.ts";
+import * as AutomationScheduler from "./automation/AutomationScheduler.ts";
+import * as AutomationService from "./automation/AutomationService.ts";
+import * as WebhookRunner from "./webhook/WebhookRunner.ts";
+import * as WebhookService from "./webhook/WebhookService.ts";
+import { webhookRouteLayer } from "./webhook/http.ts";
 import * as ServerConfig from "./config.ts";
 import {
   otlpTracesProxyRouteLayer,
@@ -46,6 +52,7 @@ import * as PreviewAutomationBroker from "./mcp/PreviewAutomationBroker.ts";
 import * as PreviewManager from "./preview/Manager.ts";
 import * as PortScanner from "./preview/PortScanner.ts";
 import * as ProcessRunner from "./processRunner.ts";
+import * as BootstrapTurnLauncher from "./orchestration/BootstrapTurnLauncher.ts";
 import * as GitManager from "./git/GitManager.ts";
 import * as Keybindings from "./keybindings.ts";
 import * as ServerRuntimeStartup from "./serverRuntimeStartup.ts";
@@ -409,7 +416,34 @@ const RuntimeCoreDependenciesLive = ReactorLayerLive.pipe(
   ),
 );
 
-const RuntimeDependenciesLive = RuntimeCoreDependenciesLive.pipe(
+const AutomationFoundationLayerLive = Layer.mergeAll(
+  AutomationService.AutomationServiceLive,
+  BootstrapTurnLauncher.layer,
+).pipe(Layer.provide(RuntimeCoreDependenciesLive));
+const AutomationRunnerLayerLive = AutomationRunner.layer.pipe(
+  Layer.provide(Layer.mergeAll(RuntimeCoreDependenciesLive, AutomationFoundationLayerLive)),
+);
+const WebhookServiceLayerLive = WebhookService.WebhookServiceLive.pipe(
+  Layer.provide(RuntimeCoreDependenciesLive),
+);
+const WebhookRunnerLayerLive = WebhookRunner.layer.pipe(
+  Layer.provide(
+    Layer.mergeAll(
+      RuntimeCoreDependenciesLive,
+      AutomationFoundationLayerLive,
+      WebhookServiceLayerLive,
+    ),
+  ),
+);
+const RuntimeCoreWithTriggersLive = Layer.mergeAll(
+  RuntimeCoreDependenciesLive,
+  AutomationFoundationLayerLive,
+  AutomationRunnerLayerLive,
+  WebhookServiceLayerLive,
+  WebhookRunnerLayerLive,
+);
+
+const RuntimeDependenciesLive = RuntimeCoreWithTriggersLive.pipe(
   // Misc.
   Layer.provideMerge(BackgroundLayerLive),
   Layer.provideMerge(ResourceDiagnosticsLayerLive),
@@ -439,6 +473,7 @@ export const makeRoutesLayer = Layer.mergeAll(
       Layer.provide(environmentAuthenticatedAuthLayer),
     ),
     otlpTracesProxyRouteLayer,
+    webhookRouteLayer,
     assetRouteLayer,
     staticAndDevRouteLayer,
     websocketRpcRouteLayer,
@@ -628,7 +663,7 @@ export const makeServerLayer = Layer.unwrap(
       }),
     );
 
-    const runtimeServicesLive = ServerRuntimeStartup.layerWithOptions({
+    const runtimeStartupLive = ServerRuntimeStartup.layerWithOptions({
       activate: Deferred.succeed(activation, undefined).pipe(Effect.asVoid),
       abort: (error) => Deferred.die(activation, error).pipe(Effect.asVoid),
       awaitAuxiliaryParked: Effect.all(
@@ -641,6 +676,9 @@ export const makeServerLayer = Layer.unwrap(
         { concurrency: "unbounded" },
       ).pipe(Effect.asVoid),
     }).pipe(Layer.provideMerge(RuntimeDependenciesLive), Layer.provide(launcherLayer));
+    const runtimeServicesLive = AutomationScheduler.layer.pipe(
+      Layer.provideMerge(runtimeStartupLive),
+    );
 
     const routesLayer = HttpRouter.serve(makeRoutesLayer.pipe(Layer.provide(launcherLayer)), {
       disableLogger: !config.logWebSocketEvents,

@@ -29,17 +29,26 @@ describe("resolveCodexLaunchArgs", () => {
 });
 
 describe("codexAppServerArgs", () => {
-  it("returns the app-server command for empty launch args", () => {
-    NodeAssert.deepStrictEqual(codexAppServerArgs(""), ["app-server"]);
+  it("enables structured user input in Build mode", () => {
+    NodeAssert.deepStrictEqual(codexAppServerArgs(""), [
+      "app-server",
+      "-c",
+      "features.default_mode_request_user_input=true",
+    ]);
   });
 
-  it("appends parsed launch args after app-server", () => {
-    NodeAssert.deepStrictEqual(codexAppServerArgs("--strict-config --enable foo"), [
-      "app-server",
-      "--strict-config",
-      "--enable",
-      "foo",
-    ]);
+  it("applies the required app-server config after parsed launch args", () => {
+    NodeAssert.deepStrictEqual(
+      codexAppServerArgs("--strict-config -c features.default_mode_request_user_input=false"),
+      [
+        "app-server",
+        "--strict-config",
+        "-c",
+        "features.default_mode_request_user_input=false",
+        "-c",
+        "features.default_mode_request_user_input=true",
+      ],
+    );
   });
 });
 

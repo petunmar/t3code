@@ -10,9 +10,12 @@ export const resolveCodexLaunchArgs = (
 export const codexLaunchArgv = (launchArgs?: string): ReadonlyArray<string> =>
   tokenizeCliArgs(launchArgs);
 
+const T3_CODEX_APP_SERVER_CONFIG = ["-c", "features.default_mode_request_user_input=true"] as const;
+
 export const codexAppServerArgs = (launchArgs?: string) => [
   "app-server",
   ...codexLaunchArgv(launchArgs),
+  ...T3_CODEX_APP_SERVER_CONFIG,
 ];
 
 export const codexExecLaunchArgs = (launchArgs?: string) => {

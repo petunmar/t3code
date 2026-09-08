@@ -1,6 +1,7 @@
 // @effect-diagnostics nodeBuiltinImport:off
 import * as NodeCrypto from "node:crypto";
 import * as NodeFS from "node:fs";
+import * as NodePath from "node:path";
 
 import type { ChatAttachment } from "@t3tools/contracts";
 
@@ -10,7 +11,57 @@ import {
 } from "./attachmentPaths.ts";
 import { inferImageExtension, SAFE_IMAGE_FILE_EXTENSIONS } from "./imageMime.ts";
 
-const ATTACHMENT_FILENAME_EXTENSIONS = [...SAFE_IMAGE_FILE_EXTENSIONS, ".bin"];
+const FILE_EXTENSION_BY_MIME_TYPE: Readonly<Record<string, string>> = {
+  "application/json": ".json",
+  "application/pdf": ".pdf",
+  "application/rtf": ".rtf",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": ".pptx",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+  "application/xml": ".xml",
+  "application/zip": ".zip",
+  "text/csv": ".csv",
+  "text/html": ".html",
+  "text/markdown": ".md",
+  "text/plain": ".txt",
+  "text/xml": ".xml",
+};
+const SAFE_FILE_EXTENSIONS = new Set([
+  ".c",
+  ".cpp",
+  ".csv",
+  ".docx",
+  ".go",
+  ".h",
+  ".html",
+  ".java",
+  ".js",
+  ".json",
+  ".jsx",
+  ".log",
+  ".md",
+  ".pdf",
+  ".pptx",
+  ".py",
+  ".rs",
+  ".rtf",
+  ".sh",
+  ".sql",
+  ".toml",
+  ".ts",
+  ".tsx",
+  ".txt",
+  ".xlsx",
+  ".xml",
+  ".yaml",
+  ".yml",
+  ".zip",
+]);
+const ATTACHMENT_FILENAME_EXTENSIONS = [
+  ...SAFE_IMAGE_FILE_EXTENSIONS,
+  ...SAFE_FILE_EXTENSIONS,
+  ".bin",
+];
 const ATTACHMENT_ID_THREAD_SEGMENT_MAX_CHARS = 80;
 const ATTACHMENT_ID_THREAD_SEGMENT_PATTERN = "[a-z0-9_]+(?:-[a-z0-9_]+)*";
 const ATTACHMENT_ID_UUID_PATTERN = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
@@ -18,6 +69,31 @@ const ATTACHMENT_ID_PATTERN = new RegExp(
   `^(${ATTACHMENT_ID_THREAD_SEGMENT_PATTERN})-(${ATTACHMENT_ID_UUID_PATTERN})$`,
   "i",
 );
+
+export interface ResolvedFileAttachment {
+  readonly attachment: Extract<ChatAttachment, { readonly type: "file" }>;
+  readonly path: string;
+}
+
+export function appendResolvedFileAttachmentsToPrompt(
+  prompt: string | undefined,
+  files: ReadonlyArray<ResolvedFileAttachment>,
+): string | undefined {
+  const trimmedPrompt = prompt?.trim();
+  if (files.length === 0) {
+    return trimmedPrompt || undefined;
+  }
+  const section = [
+    "<attached_files>",
+    "The user attached these files. Read them from the local paths below before answering.",
+    ...files.map(
+      ({ attachment, path }) =>
+        `- name=${JSON.stringify(attachment.name)} mime=${JSON.stringify(attachment.mimeType)} path=${JSON.stringify(path)}`,
+    ),
+    "</attached_files>",
+  ].join("\n");
+  return trimmedPrompt ? `${trimmedPrompt}\n\n${section}` : section;
+}
 
 export function toSafeThreadAttachmentSegment(threadId: string): string | null {
   const segment = threadId
@@ -61,6 +137,13 @@ export function attachmentRelativePath(attachment: ChatAttachment): string {
         mimeType: attachment.mimeType,
         fileName: attachment.name,
       });
+      return `${attachment.id}${extension}`;
+    }
+    case "file": {
+      const mimeExtension = FILE_EXTENSION_BY_MIME_TYPE[attachment.mimeType.toLowerCase()];
+      const nameExtension = NodePath.extname(attachment.name).toLowerCase();
+      const extension =
+        mimeExtension ?? (SAFE_FILE_EXTENSIONS.has(nameExtension) ? nameExtension : ".bin");
       return `${attachment.id}${extension}`;
     }
   }

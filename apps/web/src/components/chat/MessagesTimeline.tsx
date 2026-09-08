@@ -52,6 +52,7 @@ import {
   ChevronRightIcon,
   CircleAlertIcon,
   EyeIcon,
+  FileIcon,
   GlobeIcon,
   HammerIcon,
   MessageCircleIcon,
@@ -960,7 +961,9 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
 
 function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" }> }) {
   const ctx = use(TimelineRowCtx);
-  const userImages = row.message.attachments ?? [];
+  const userAttachments = row.message.attachments ?? [];
+  const userImages = userAttachments.filter((attachment) => attachment.type === "image");
+  const userFiles = userAttachments.filter((attachment) => attachment.type === "file");
   const displayedUserMessage = deriveDisplayedUserMessageState(row.message.text);
   const terminalContexts = displayedUserMessage.contexts;
   const previewAnnotations: ParsedPreviewAnnotation[] = [];
@@ -985,7 +988,7 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
       <div className="relative max-w-[80%] rounded-2xl bg-message p-3 text-message-foreground">
         {regularImages.length > 0 && (
           <div className="mb-2 grid max-w-[420px] grid-cols-2 gap-2">
-            {regularImages.map((image: NonNullable<TimelineMessage["attachments"]>[number]) => (
+            {regularImages.map((image) => (
               <div
                 key={image.id}
                 className="overflow-hidden rounded-lg border border-border/80 bg-background/70"
@@ -1014,6 +1017,39 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
                 )}
               </div>
             ))}
+          </div>
+        )}
+        {userFiles.length > 0 && (
+          <div className="mb-2 flex max-w-[420px] flex-col gap-1.5">
+            {userFiles.map((file) => {
+              const content = (
+                <>
+                  <FileIcon className="size-4 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate">{file.name}</span>
+                  <span className="shrink-0 text-[10px] text-secondary-label">
+                    {Math.max(1, Math.ceil(file.sizeBytes / 1024))} KB
+                  </span>
+                </>
+              );
+              return file.previewUrl ? (
+                <a
+                  key={file.id}
+                  href={file.previewUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex min-w-0 items-center gap-2 rounded-lg border border-border/80 bg-background/70 px-2.5 py-2 text-xs hover:bg-background"
+                >
+                  {content}
+                </a>
+              ) : (
+                <div
+                  key={file.id}
+                  className="flex min-w-0 items-center gap-2 rounded-lg border border-border/80 bg-background/70 px-2.5 py-2 text-xs"
+                >
+                  {content}
+                </div>
+              );
+            })}
           </div>
         )}
         {previewAnnotations.map((annotation, index) => (
@@ -1535,7 +1571,10 @@ const UserMessageElementContextChip = memo(function UserMessageElementContextChi
 
 function UserMessagePreviewAnnotationCard(props: {
   annotation: ParsedPreviewAnnotation;
-  image: NonNullable<TimelineMessage["attachments"]>[number] | null;
+  image: Extract<
+    NonNullable<TimelineMessage["attachments"]>[number],
+    { readonly type: "image" }
+  > | null;
 }) {
   const ctx = use(TimelineRowCtx);
   return (

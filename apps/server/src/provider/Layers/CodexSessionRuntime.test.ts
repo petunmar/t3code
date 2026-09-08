@@ -247,6 +247,16 @@ describe("buildTurnStartParams", () => {
 });
 
 describe("buildCodexDeveloperInstructions", () => {
+  it("allows structured user input in default mode", () => {
+    const instructions = buildCodexDeveloperInstructions("default", {
+      model: "gpt-5.3-codex",
+      reasoningEffort: "high",
+    });
+
+    NodeAssert.match(instructions, /explicit user requests for a structured question with options/);
+    NodeAssert.doesNotMatch(instructions, /unavailable in Default mode/);
+  });
+
   it("appends runtime info after the mode instructions", () => {
     const instructions = buildCodexDeveloperInstructions("default", {
       model: "gpt-5.3-codex",
@@ -323,6 +333,8 @@ describe("codexSessionAppServerArgs", () => {
     NodeAssert.deepStrictEqual(codexSessionAppServerArgs(["-c", "model=gpt-5"], undefined), [
       "app-server",
       "-c",
+      "features.default_mode_request_user_input=true",
+      "-c",
       "model=gpt-5",
     ]);
   });
@@ -338,6 +350,8 @@ describe("codexSessionAppServerArgs", () => {
         "--strict-config",
         "--enable",
         "foo",
+        "-c",
+        "features.default_mode_request_user_input=true",
         "-c",
         "mcp_servers.t3-code.url=http://127.0.0.1/mcp",
       ],

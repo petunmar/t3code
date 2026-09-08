@@ -43,6 +43,14 @@
       "types": "./src/state/auth.ts",
       "default": "./src/state/auth.ts"
     },
+    "./state/automation": {
+      "types": "./src/state/automation.ts",
+      "default": "./src/state/automation.ts"
+    },
+    "./state/webhook": {
+      "types": "./src/state/webhook.ts",
+      "default": "./src/state/webhook.ts"
+    },
     "./state/assets": {
       "types": "./src/state/assets.ts",
       "default": "./src/state/assets.ts"

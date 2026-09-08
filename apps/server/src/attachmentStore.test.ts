@@ -6,6 +6,8 @@ import * as NodePath from "node:path";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  appendResolvedFileAttachmentsToPrompt,
+  attachmentRelativePath,
   createAttachmentId,
   parseThreadSegmentFromAttachmentId,
   resolveAttachmentPathById,
@@ -76,5 +78,48 @@ describe("attachmentStore", () => {
     } finally {
       NodeFS.rmSync(attachmentsDir, { recursive: true, force: true });
     }
+  });
+
+  it("keeps a PDF extension and resolves it by attachment id", () => {
+    const attachmentsDir = NodeFS.mkdtempSync(
+      NodePath.join(NodeOS.tmpdir(), "t3code-attachment-store-"),
+    );
+    const attachment = {
+      type: "file" as const,
+      id: "thread-file-00000000-0000-4000-8000-000000000001",
+      name: "requirements.pdf",
+      mimeType: "application/pdf",
+      sizeBytes: 5,
+    };
+    try {
+      expect(attachmentRelativePath(attachment)).toBe(`${attachment.id}.pdf`);
+      const pdfPath = NodePath.join(attachmentsDir, attachmentRelativePath(attachment));
+      NodeFS.writeFileSync(pdfPath, Buffer.from("hello"));
+      expect(resolveAttachmentPathById({ attachmentsDir, attachmentId: attachment.id })).toBe(
+        pdfPath,
+      );
+    } finally {
+      NodeFS.rmSync(attachmentsDir, { recursive: true, force: true });
+    }
+  });
+
+  it("adds resolved file paths to provider prompts", () => {
+    const prompt = appendResolvedFileAttachmentsToPrompt("Summarize this", [
+      {
+        attachment: {
+          type: "file",
+          id: "thread-file-00000000-0000-4000-8000-000000000001",
+          name: "requirements.pdf",
+          mimeType: "application/pdf",
+          sizeBytes: 5,
+        },
+        path: "/tmp/t3/attachment.pdf",
+      },
+    ]);
+
+    expect(prompt).toContain("Summarize this");
+    expect(prompt).toContain("<attached_files>");
+    expect(prompt).toContain('name="requirements.pdf"');
+    expect(prompt).toContain('path="/tmp/t3/attachment.pdf"');
   });
 });

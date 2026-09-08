@@ -660,6 +660,8 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         className={cn(
           "mt-1 text-base font-t3-medium",
           selected ? "text-user-bubble-foreground" : "text-foreground",
+          thread.origin?.type === "automation" && "text-blue-500",
+          thread.origin?.type === "webhook" && "text-violet-500",
         )}
         numberOfLines={2}
       >
@@ -829,6 +831,8 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
               className={cn(
                 "text-base",
                 selected ? "text-user-bubble-foreground" : "text-foreground-muted",
+                thread.origin?.type === "automation" && "text-blue-500",
+                thread.origin?.type === "webhook" && "text-violet-500",
               )}
               numberOfLines={1}
             >

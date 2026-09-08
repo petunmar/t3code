@@ -75,7 +75,7 @@ import {
   sortProviderInstanceEntries,
 } from "../../providerInstances";
 import { ensureLocalApi, readLocalApi } from "../../localApi";
-import { isMacPlatform } from "../../lib/utils";
+import { cn, isMacPlatform } from "../../lib/utils";
 import { primaryServerObservabilityAtom, primaryServerProvidersAtom } from "../../state/server";
 import { useProjects } from "../../state/entities";
 import { useArchivedThreadSnapshots } from "../../lib/archivedThreadsState";
@@ -2409,7 +2409,16 @@ export function ArchivedThreadsPanel() {
                     }
                   })();
                 }}
-                title={thread.title}
+                title={
+                  <span
+                    className={cn(
+                      thread.origin?.type === "automation" && "text-blue-600 dark:text-blue-400",
+                      thread.origin?.type === "webhook" && "text-violet-600 dark:text-violet-400",
+                    )}
+                  >
+                    {thread.title}
+                  </span>
+                }
                 description={
                   <>
                     Archived {formatRelativeTimeLabel(thread.archivedAt ?? thread.createdAt)}

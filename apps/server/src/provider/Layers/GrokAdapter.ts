@@ -32,7 +32,11 @@ import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawne
 import * as EffectAcpErrors from "effect-acp/errors";
 import type * as EffectAcpSchema from "effect-acp/schema";
 
-import { resolveAttachmentPath } from "../../attachmentStore.ts";
+import {
+  appendResolvedFileAttachmentsToPrompt,
+  resolveAttachmentPath,
+  type ResolvedFileAttachment,
+} from "../../attachmentStore.ts";
 import { ServerConfig } from "../../config.ts";
 import * as McpProviderSession from "../../mcp/McpProviderSession.ts";
 import {
@@ -950,7 +954,7 @@ export function makeGrokAdapter(grokSettings: GrokSettings, options?: GrokAdapte
                   mapAcpToAdapterError(PROVIDER, input.threadId, "session/set_model", cause),
               });
 
-              const text = input.input?.trim();
+              const files: ResolvedFileAttachment[] = [];
               const imagePromptParts = yield* Effect.forEach(
                 input.attachments ?? [],
                 (attachment) =>
@@ -965,6 +969,10 @@ export function makeGrokAdapter(grokSettings: GrokSettings, options?: GrokAdapte
                         method: "session/prompt",
                         detail: `Invalid attachment id '${attachment.id}'.`,
                       });
+                    }
+                    if (attachment.type === "file") {
+                      files.push({ attachment, path: attachmentPath });
+                      return null;
                     }
                     const bytes = yield* fileSystem.readFile(attachmentPath).pipe(
                       Effect.mapError(
@@ -984,9 +992,10 @@ export function makeGrokAdapter(grokSettings: GrokSettings, options?: GrokAdapte
                     } satisfies EffectAcpSchema.ContentBlock;
                   }),
               );
+              const text = appendResolvedFileAttachmentsToPrompt(input.input, files);
               const promptParts: Array<EffectAcpSchema.ContentBlock> = [
                 ...(text ? [{ type: "text" as const, text }] : []),
-                ...imagePromptParts,
+                ...imagePromptParts.filter((part) => part !== null),
               ];
 
               if (promptParts.length === 0) {

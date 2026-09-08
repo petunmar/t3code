@@ -182,6 +182,43 @@ function MessageAttachmentImage(props: {
   );
 }
 
+function MessageAttachmentFile(props: {
+  readonly environmentId: EnvironmentId;
+  readonly attachmentId: string;
+  readonly name: string;
+  readonly className?: string;
+}) {
+  const iconColor = String(useThemeColor("--color-icon-subtle"));
+  const uri = useAssetUrl(props.environmentId, {
+    _tag: "attachment",
+    attachmentId: props.attachmentId,
+  });
+
+  return (
+    <Pressable
+      accessibilityRole="link"
+      accessibilityLabel={`Open ${props.name}`}
+      disabled={uri === null}
+      onPress={() => {
+        if (uri !== null) void Linking.openURL(uri);
+      }}
+      className={cn(
+        "min-h-11 flex-row items-center gap-2 rounded-[12px] border border-black/10 px-3 py-2 dark:border-white/15",
+        props.className,
+      )}
+    >
+      {uri === null ? (
+        <ActivityIndicator size="small" />
+      ) : (
+        <SymbolView name="doc.text" size={16} tintColor={iconColor} type="monochrome" />
+      )}
+      <Text className="min-w-0 flex-1 font-t3-medium text-sm" numberOfLines={1}>
+        {props.name}
+      </Text>
+    </Pressable>
+  );
+}
+
 const MARKDOWN_COLORS = {
   light: {
     body: "#111111",
@@ -911,13 +948,21 @@ function renderFeedEntry(
               />
             ) : null}
             {attachments.map((attachment) => {
-              return (
+              return attachment.type === "image" ? (
                 <MessageAttachmentImage
                   key={attachment.id}
                   environmentId={props.environmentId}
                   attachmentId={attachment.id}
                   className="aspect-[1.3] w-full rounded-[14px] bg-white/15"
                   onPressImage={props.onPressImage}
+                />
+              ) : (
+                <MessageAttachmentFile
+                  key={attachment.id}
+                  environmentId={props.environmentId}
+                  attachmentId={attachment.id}
+                  name={attachment.name}
+                  className="bg-white/10"
                 />
               );
             })}
@@ -972,13 +1017,21 @@ function renderFeedEntry(
           )
         ) : null}
         {attachments.map((attachment) => {
-          return (
+          return attachment.type === "image" ? (
             <MessageAttachmentImage
               key={attachment.id}
               environmentId={props.environmentId}
               attachmentId={attachment.id}
               className="mt-1.5 aspect-[1.3] w-full rounded-[18px] bg-neutral-200 dark:bg-neutral-800"
               onPressImage={props.onPressImage}
+            />
+          ) : (
+            <MessageAttachmentFile
+              key={attachment.id}
+              environmentId={props.environmentId}
+              attachmentId={attachment.id}
+              name={attachment.name}
+              className="mt-1.5"
             />
           );
         })}

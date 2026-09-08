@@ -4,6 +4,35 @@ import * as RpcGroup from "effect/unstable/rpc/RpcGroup";
 
 import { ExternalLauncherError, LaunchEditorInput } from "./editor.ts";
 import {
+  AUTOMATION_WS_METHODS,
+  AutomationCreateInput,
+  AutomationDetail,
+  AutomationIdInput,
+  AutomationRevisionInput,
+  AutomationRpcError,
+  AutomationRunsPage,
+  AutomationRunsPageInput,
+  AutomationRunSummary,
+  AutomationSchedulePreview,
+  AutomationSchedulePreviewInput,
+  AutomationSnapshot,
+  AutomationStreamEvent,
+  AutomationUpdateInput,
+} from "./automation.ts";
+import {
+  WEBHOOK_WS_METHODS,
+  WebhookCreateInput,
+  WebhookDeliveriesPage,
+  WebhookDeliveriesPageInput,
+  WebhookDetail,
+  WebhookIdInput,
+  WebhookRevisionInput,
+  WebhookRpcError,
+  WebhookSnapshot,
+  WebhookStreamEvent,
+  WebhookUpdateInput,
+} from "./webhook.ts";
+import {
   AuthAccessStreamError,
   AuthAccessStreamEvent,
   EnvironmentAuthorizationError,
@@ -761,6 +790,134 @@ export const WsOrchestrationSubscribeThreadRpc = Rpc.make(
   },
 );
 
+export const WsAutomationGetSnapshotRpc = Rpc.make(AUTOMATION_WS_METHODS.getSnapshot, {
+  payload: Schema.Struct({}),
+  success: AutomationSnapshot,
+  error: Schema.Union([AutomationRpcError, EnvironmentAuthorizationError]),
+});
+
+export const WsAutomationSubscribeRpc = Rpc.make(AUTOMATION_WS_METHODS.subscribe, {
+  payload: Schema.Struct({}),
+  success: AutomationStreamEvent,
+  error: Schema.Union([AutomationRpcError, EnvironmentAuthorizationError]),
+  stream: true,
+});
+
+export const WsAutomationGetDetailRpc = Rpc.make(AUTOMATION_WS_METHODS.getDetail, {
+  payload: AutomationIdInput,
+  success: AutomationDetail,
+  error: Schema.Union([AutomationRpcError, EnvironmentAuthorizationError]),
+});
+
+export const WsAutomationGetRunsPageRpc = Rpc.make(AUTOMATION_WS_METHODS.getRunsPage, {
+  payload: AutomationRunsPageInput,
+  success: AutomationRunsPage,
+  error: Schema.Union([AutomationRpcError, EnvironmentAuthorizationError]),
+});
+
+export const WsAutomationPreviewScheduleRpc = Rpc.make(AUTOMATION_WS_METHODS.previewSchedule, {
+  payload: AutomationSchedulePreviewInput,
+  success: AutomationSchedulePreview,
+  error: Schema.Union([AutomationRpcError, EnvironmentAuthorizationError]),
+});
+
+export const WsAutomationCreateRpc = Rpc.make(AUTOMATION_WS_METHODS.create, {
+  payload: AutomationCreateInput,
+  success: AutomationDetail,
+  error: Schema.Union([AutomationRpcError, EnvironmentAuthorizationError]),
+});
+
+export const WsAutomationUpdateRpc = Rpc.make(AUTOMATION_WS_METHODS.update, {
+  payload: AutomationUpdateInput,
+  success: AutomationDetail,
+  error: Schema.Union([AutomationRpcError, EnvironmentAuthorizationError]),
+});
+
+export const WsAutomationPauseRpc = Rpc.make(AUTOMATION_WS_METHODS.pause, {
+  payload: AutomationRevisionInput,
+  success: AutomationDetail,
+  error: Schema.Union([AutomationRpcError, EnvironmentAuthorizationError]),
+});
+
+export const WsAutomationResumeRpc = Rpc.make(AUTOMATION_WS_METHODS.resume, {
+  payload: AutomationRevisionInput,
+  success: AutomationDetail,
+  error: Schema.Union([AutomationRpcError, EnvironmentAuthorizationError]),
+});
+
+export const WsAutomationDeleteRpc = Rpc.make(AUTOMATION_WS_METHODS.delete, {
+  payload: AutomationRevisionInput,
+  success: AutomationIdInput,
+  error: Schema.Union([AutomationRpcError, EnvironmentAuthorizationError]),
+});
+
+export const WsAutomationRunNowRpc = Rpc.make(AUTOMATION_WS_METHODS.runNow, {
+  payload: AutomationIdInput,
+  success: AutomationRunSummary,
+  error: Schema.Union([AutomationRpcError, EnvironmentAuthorizationError]),
+});
+
+export const WsWebhookGetSnapshotRpc = Rpc.make(WEBHOOK_WS_METHODS.getSnapshot, {
+  payload: Schema.Struct({}),
+  success: WebhookSnapshot,
+  error: Schema.Union([WebhookRpcError, EnvironmentAuthorizationError]),
+});
+
+export const WsWebhookSubscribeRpc = Rpc.make(WEBHOOK_WS_METHODS.subscribe, {
+  payload: Schema.Struct({}),
+  success: WebhookStreamEvent,
+  error: Schema.Union([WebhookRpcError, EnvironmentAuthorizationError]),
+  stream: true,
+});
+
+export const WsWebhookGetDetailRpc = Rpc.make(WEBHOOK_WS_METHODS.getDetail, {
+  payload: WebhookIdInput,
+  success: WebhookDetail,
+  error: Schema.Union([WebhookRpcError, EnvironmentAuthorizationError]),
+});
+
+export const WsWebhookGetDeliveriesPageRpc = Rpc.make(WEBHOOK_WS_METHODS.getDeliveriesPage, {
+  payload: WebhookDeliveriesPageInput,
+  success: WebhookDeliveriesPage,
+  error: Schema.Union([WebhookRpcError, EnvironmentAuthorizationError]),
+});
+
+export const WsWebhookCreateRpc = Rpc.make(WEBHOOK_WS_METHODS.create, {
+  payload: WebhookCreateInput,
+  success: WebhookDetail,
+  error: Schema.Union([WebhookRpcError, EnvironmentAuthorizationError]),
+});
+
+export const WsWebhookUpdateRpc = Rpc.make(WEBHOOK_WS_METHODS.update, {
+  payload: WebhookUpdateInput,
+  success: WebhookDetail,
+  error: Schema.Union([WebhookRpcError, EnvironmentAuthorizationError]),
+});
+
+export const WsWebhookPauseRpc = Rpc.make(WEBHOOK_WS_METHODS.pause, {
+  payload: WebhookRevisionInput,
+  success: WebhookDetail,
+  error: Schema.Union([WebhookRpcError, EnvironmentAuthorizationError]),
+});
+
+export const WsWebhookResumeRpc = Rpc.make(WEBHOOK_WS_METHODS.resume, {
+  payload: WebhookRevisionInput,
+  success: WebhookDetail,
+  error: Schema.Union([WebhookRpcError, EnvironmentAuthorizationError]),
+});
+
+export const WsWebhookRotateSecretRpc = Rpc.make(WEBHOOK_WS_METHODS.rotateSecret, {
+  payload: WebhookRevisionInput,
+  success: WebhookDetail,
+  error: Schema.Union([WebhookRpcError, EnvironmentAuthorizationError]),
+});
+
+export const WsWebhookDeleteRpc = Rpc.make(WEBHOOK_WS_METHODS.delete, {
+  payload: WebhookRevisionInput,
+  success: WebhookIdInput,
+  error: Schema.Union([WebhookRpcError, EnvironmentAuthorizationError]),
+});
+
 export const WsSubscribeTerminalEventsRpc = Rpc.make(WS_METHODS.subscribeTerminalEvents, {
   payload: Schema.Struct({}),
   success: TerminalEvent,
@@ -893,4 +1050,25 @@ export const WsRpcGroup = RpcGroup.make(
   WsOrchestrationGetArchivedShellSnapshotRpc,
   WsOrchestrationSubscribeShellRpc,
   WsOrchestrationSubscribeThreadRpc,
+  WsAutomationGetSnapshotRpc,
+  WsAutomationSubscribeRpc,
+  WsAutomationGetDetailRpc,
+  WsAutomationGetRunsPageRpc,
+  WsAutomationPreviewScheduleRpc,
+  WsAutomationCreateRpc,
+  WsAutomationUpdateRpc,
+  WsAutomationPauseRpc,
+  WsAutomationResumeRpc,
+  WsAutomationDeleteRpc,
+  WsAutomationRunNowRpc,
+  WsWebhookGetSnapshotRpc,
+  WsWebhookSubscribeRpc,
+  WsWebhookGetDetailRpc,
+  WsWebhookGetDeliveriesPageRpc,
+  WsWebhookCreateRpc,
+  WsWebhookUpdateRpc,
+  WsWebhookPauseRpc,
+  WsWebhookResumeRpc,
+  WsWebhookRotateSecretRpc,
+  WsWebhookDeleteRpc,
 );

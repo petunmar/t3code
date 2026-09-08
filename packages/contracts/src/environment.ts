@@ -56,6 +56,11 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
   /** Server understands regenerateTitle on thread.meta.update. Absent on
       older servers, so clients hide the action instead of sending it. */
   threadTitleRegeneration: Schema.optionalKey(Schema.Boolean),
+  /** Server owns durable scheduled agent definitions and can execute them
+      without a connected client. */
+  automations: Schema.optionalKey(Schema.Boolean),
+  /** Server owns durable HTTP webhook definitions that launch agent threads. */
+  webhooks: Schema.optionalKey(Schema.Boolean),
   /** The update path clients should offer for this server. Absent on
       servers that must be relaunched manually (dev checkouts, Windows
       foreground runs, pre-update servers). */

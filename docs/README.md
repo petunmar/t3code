@@ -11,6 +11,9 @@
 - [Source control integrations](./user/source-control.md)
 - [Background service (Linux)](./user/background-service.md)
 - Providers: [Codex](./user/providers-codex.md) · [Claude](./user/providers-claude.md)
+- Chat: [File attachments](./user/attachments.md)
+- [Automations](./user/automations.md)
+- [Webhooks](./user/webhooks.md)
 
 Mobile app: [apps/mobile/README.md](../apps/mobile/README.md)
 

@@ -3,6 +3,7 @@ export type SettingsPath =
   | "/settings/appearance"
   | "/settings/keybindings"
   | "/settings/providers"
+  | "/settings/automations"
   | "/settings/source-control"
   | "/settings/connections"
   | "/settings/archived";
@@ -23,6 +24,7 @@ export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
   "/settings/appearance": "Appearance",
   "/settings/keybindings": "Keybindings",
   "/settings/providers": "Providers",
+  "/settings/automations": "Automations",
   "/settings/source-control": "Source Control",
   "/settings/connections": "Connections",
   "/settings/archived": "Archive",
@@ -35,6 +37,16 @@ export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
  * here once instead of separately in the panel and the index.
  */
 export const SETTINGS_SEARCH_ITEMS = [
+  {
+    id: "automations",
+    title: "Automations",
+    to: "/settings/automations",
+  },
+  {
+    id: "webhooks",
+    title: "Webhooks",
+    to: "/settings/automations",
+  },
   {
     id: "color-scheme",
     title: "Color scheme",

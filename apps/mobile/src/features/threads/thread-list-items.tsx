@@ -560,7 +560,14 @@ export const ThreadListRow = memo(function ThreadListRow(props: {
             }}
           >
             <View className="flex-row items-center justify-between gap-2">
-              <Text className="flex-1 text-lg font-t3-bold text-foreground" numberOfLines={1}>
+              <Text
+                className={cn(
+                  "flex-1 text-lg font-t3-bold text-foreground",
+                  thread.origin?.type === "automation" && "text-blue-500",
+                  thread.origin?.type === "webhook" && "text-violet-500",
+                )}
+                numberOfLines={1}
+              >
                 {thread.title}
               </Text>
               <View className="flex-row items-center gap-2">
@@ -617,6 +624,8 @@ export const ThreadListRow = memo(function ThreadListRow(props: {
               className={cn(
                 "flex-1 text-base font-t3-medium",
                 selected ? "text-user-bubble-foreground" : "text-foreground",
+                thread.origin?.type === "automation" && "text-blue-500",
+                thread.origin?.type === "webhook" && "text-violet-500",
               )}
               numberOfLines={1}
             >

@@ -370,6 +370,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           modelSelection: command.modelSelection,
           runtimeMode: command.runtimeMode,
           interactionMode: command.interactionMode,
+          origin: command.origin ?? null,
           branch: command.branch,
           worktreePath: command.worktreePath,
           createdAt: command.createdAt,

@@ -40,7 +40,11 @@ import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawne
 import * as EffectAcpErrors from "effect-acp/errors";
 import type * as EffectAcpSchema from "effect-acp/schema";
 
-import { resolveAttachmentPath } from "../../attachmentStore.ts";
+import {
+  appendResolvedFileAttachmentsToPrompt,
+  resolveAttachmentPath,
+  type ResolvedFileAttachment,
+} from "../../attachmentStore.ts";
 import { ServerConfig } from "../../config.ts";
 import * as McpProviderSession from "../../mcp/McpProviderSession.ts";
 import {
@@ -961,9 +965,7 @@ export function makeCursorAdapter(
           }
 
           const promptParts: Array<EffectAcpSchema.ContentBlock> = [];
-          if (input.input?.trim()) {
-            promptParts.push({ type: "text", text: input.input.trim() });
-          }
+          const files: ResolvedFileAttachment[] = [];
           if (input.attachments && input.attachments.length > 0) {
             for (const attachment of input.attachments) {
               const attachmentPath = resolveAttachmentPath({
@@ -976,6 +978,10 @@ export function makeCursorAdapter(
                   method: "session/prompt",
                   detail: `Invalid attachment id '${attachment.id}'.`,
                 });
+              }
+              if (attachment.type === "file") {
+                files.push({ attachment, path: attachmentPath });
+                continue;
               }
               const bytes = yield* fileSystem.readFile(attachmentPath).pipe(
                 Effect.mapError(
@@ -994,6 +1000,10 @@ export function makeCursorAdapter(
                 mimeType: attachment.mimeType,
               });
             }
+          }
+          const prompt = appendResolvedFileAttachmentsToPrompt(input.input, files);
+          if (prompt) {
+            promptParts.unshift({ type: "text", text: prompt });
           }
 
           if (promptParts.length === 0) {

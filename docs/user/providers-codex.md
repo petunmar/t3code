@@ -3,6 +3,10 @@
 This guide is for people who want to use more than one Codex account in T3 Code. For Claude, see
 [Claude](./providers-claude.md). For first-time setup, see [Install T3 Code](./install.md).
 
+Codex can show structured, option-based questions in both Build and Plan modes. In Build mode, ask
+the agent to present a question with options when you want to make a choice during implementation.
+T3 Code enables this capability for Codex sessions automatically.
+
 Common reasons:
 
 - use a work account for work projects
