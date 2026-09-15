@@ -281,6 +281,55 @@ function stripNullDefaults(value: Schema.Json): Schema.Json {
   ) as Schema.Json;
 }
 
+const completedSubAgentActivityKind = [
+  "started",
+  "interacted",
+  "interrupted",
+  "completed",
+] as const;
+
+function applyProtocolCompatibility(schemaName: string, schema: Schema.Json): Schema.Json {
+  if (Array.isArray(schema) || schema === null || typeof schema !== "object") {
+    return schema;
+  }
+  const schemaObject = schema as Record<string, Schema.Json>;
+  const enumValues = schemaObject.enum;
+
+  if (
+    schemaName.endsWith("SubAgentActivityKind") &&
+    Array.isArray(enumValues) &&
+    enumValues.length === completedSubAgentActivityKind.length - 1 &&
+    enumValues.every((value, index) => value === completedSubAgentActivityKind[index])
+  ) {
+    return {
+      ...schemaObject,
+      enum: completedSubAgentActivityKind,
+    };
+  }
+
+  const properties = schemaObject.properties;
+  if (
+    schemaName.endsWith("ThreadResumeParams") &&
+    properties !== null &&
+    typeof properties === "object" &&
+    !Array.isArray(properties)
+  ) {
+    return {
+      ...schemaObject,
+      properties: {
+        ...(properties as Record<string, Schema.Json>),
+        excludeTurns: {
+          description:
+            "When true, return only thread metadata and live-resume state without populating `thread.turns`.",
+          type: "boolean",
+        },
+      },
+    };
+  }
+
+  return schema;
+}
+
 function toPascalCaseMethod(method: string) {
   return method
     .split("/")
@@ -556,13 +605,16 @@ const generateFiles = Effect.fn("generateFiles")(function* () {
     );
 
     for (const [definitionName, definitionSchema] of Object.entries(parsed.definitions ?? {})) {
-      aggregateSchemas[localDefinitionNames.get(definitionName)!] = stripNullDefaults(
-        normalizeNullableTypes(
-          rewriteExternalRefs(
-            definitionSchema,
-            localDefinitionNames,
-            file.namespace,
-            exportNameByQualifiedName,
+      aggregateSchemas[localDefinitionNames.get(definitionName)!] = applyProtocolCompatibility(
+        definitionName,
+        stripNullDefaults(
+          normalizeNullableTypes(
+            rewriteExternalRefs(
+              definitionSchema,
+              localDefinitionNames,
+              file.namespace,
+              exportNameByQualifiedName,
+            ),
           ),
         ),
       );
@@ -575,13 +627,16 @@ const generateFiles = Effect.fn("generateFiles")(function* () {
       }
     }
 
-    aggregateSchemas[file.exportName] = stripNullDefaults(
-      normalizeNullableTypes(
-        rewriteExternalRefs(
-          topLevelSchema,
-          localDefinitionNames,
-          file.namespace,
-          exportNameByQualifiedName,
+    aggregateSchemas[file.exportName] = applyProtocolCompatibility(
+      file.exportName,
+      stripNullDefaults(
+        normalizeNullableTypes(
+          rewriteExternalRefs(
+            topLevelSchema,
+            localDefinitionNames,
+            file.namespace,
+            exportNameByQualifiedName,
+          ),
         ),
       ),
     );

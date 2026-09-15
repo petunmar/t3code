@@ -571,6 +571,15 @@ function mapCollabAgentEvent(
           },
         ];
       }
+      if (activityKind === "completed") {
+        return [
+          {
+            ...base,
+            type: "task.updated",
+            payload: { taskId, status: "completed", ...statusLinkage },
+          },
+        ];
+      }
       if (activityKind === "started") {
         // Wire-probe finding: children often register via subAgentActivity
         // alone (no thread/started with a spawn source), so this is the one
