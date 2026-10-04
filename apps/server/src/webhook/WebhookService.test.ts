@@ -100,15 +100,15 @@ it.layer(NodeServices.layer)("WebhookService", (it) => {
     }).pipe(Effect.provide(WebhookServiceTestLayer)),
   );
 
-  it.effect("deduplicates delivery retries and permits a failed launch to retry", () =>
+  it.effect("deduplicates for three days and permits a failed launch to retry", () =>
     Effect.gen(function* () {
       const service = yield* WebhookService.WebhookService;
       const definition = yield* createDefinition;
-      const claim = () =>
+      const claim = (receivedAt = "2026-01-02T09:00:00.000Z") =>
         service.claimDelivery({
           webhookId: definition.id,
           dedupeKey: "posthog:event-1",
-          receivedAt: "2026-01-02T09:00:00.000Z",
+          receivedAt,
           payloadBytes: 123,
         });
 
@@ -129,6 +129,21 @@ it.layer(NodeServices.layer)("WebhookService", (it) => {
       expect(retried.claimed).toBe(true);
       expect(retried.delivery.id).toBe(first.delivery.id);
       expect(retried.delivery.status).toBe("launching");
+
+      const stillDeduplicated = yield* claim("2026-01-05T08:59:59.999Z");
+      expect(stillDeduplicated.claimed).toBe(false);
+      expect(stillDeduplicated.delivery.id).toBe(first.delivery.id);
+
+      const expired = yield* claim("2026-01-05T09:00:00.000Z");
+      expect(expired.claimed).toBe(true);
+      expect(expired.delivery.id).not.toBe(first.delivery.id);
+
+      const expiredDuplicate = yield* claim("2026-01-05T09:01:00.000Z");
+      expect(expiredDuplicate.claimed).toBe(false);
+      expect(expiredDuplicate.delivery.id).toBe(expired.delivery.id);
+
+      const page = yield* service.getDeliveriesPage({ webhookId: definition.id });
+      expect(page.deliveries.map(({ id }) => id)).toEqual([expired.delivery.id, first.delivery.id]);
     }).pipe(Effect.provide(WebhookServiceTestLayer)),
   );
 });

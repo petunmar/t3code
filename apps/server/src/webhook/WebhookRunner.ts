@@ -14,9 +14,11 @@ import { buildTemporaryWorktreeBranchName } from "@t3tools/shared/git";
 import * as Context from "effect/Context";
 import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
+import * as Scope from "effect/Scope";
 
 import * as BootstrapTurnLauncher from "../orchestration/BootstrapTurnLauncher.ts";
 import * as ProjectionSnapshotQuery from "../orchestration/Services/ProjectionSnapshotQuery.ts";
@@ -72,6 +74,8 @@ const make = Effect.gen(function* () {
   const launcher = yield* BootstrapTurnLauncher.BootstrapTurnLauncher;
   const projection = yield* ProjectionSnapshotQuery.ProjectionSnapshotQuery;
   const crypto = yield* Crypto.Crypto;
+  const deliveryScope = yield* Scope.make("sequential");
+  yield* Effect.addFinalizer(() => Scope.close(deliveryScope, Exit.void));
 
   const uuid = crypto.randomUUIDv4.pipe(
     Effect.mapError(
@@ -103,17 +107,15 @@ const make = Effect.gen(function* () {
       }
       const project = projectOption.value;
       const workspace = input.webhook.workspace;
-      const branch =
-        workspace.kind === "new-worktree"
-          ? buildTemporaryWorktreeBranchName(() => input.delivery.id)
-          : workspace.expectedBranch;
+      const temporaryBranch = buildTemporaryWorktreeBranchName(() => threadId);
+      const branch = workspace.kind === "new-worktree" ? temporaryBranch : workspace.expectedBranch;
       const worktreePath = workspace.kind === "existing-worktree" ? workspace.worktreePath : null;
       const prepareWorktree =
         workspace.kind === "new-worktree"
           ? {
               projectCwd: project.workspaceRoot,
               baseBranch: workspace.fromBranch,
-              branch: buildTemporaryWorktreeBranchName(() => input.delivery.id),
+              branch: temporaryBranch,
               ...(workspace.startFromOrigin ? { startFromOrigin: true } : {}),
             }
           : undefined;
@@ -177,7 +179,23 @@ const make = Effect.gen(function* () {
     );
   });
 
-  return { runDelivery };
+  const startDelivery = Effect.fn("WebhookRunner.startDelivery")(function* (
+    input: RunWebhookDeliveryInput,
+  ) {
+    if (!input.claimed) return;
+    yield* runDelivery(input).pipe(
+      Effect.catch((error) =>
+        Effect.logWarning("background webhook delivery failed", {
+          webhookId: input.webhook.id,
+          deliveryId: input.delivery.id,
+          cause: error,
+        }),
+      ),
+      Effect.forkIn(deliveryScope, { startImmediately: true }),
+    );
+  });
+
+  return { runDelivery, startDelivery };
 });
 
 export class WebhookRunner extends Context.Service<WebhookRunner, Effect.Success<typeof make>>()(

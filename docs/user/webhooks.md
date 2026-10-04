@@ -12,7 +12,7 @@ The environment that owns the project must be running and reachable from the sys
 
 Successful requests return HTTP `202`. Every accepted event gets a delivery-history entry linked to its thread.
 
-Send an `X-T3-Delivery-ID` header containing the source system's stable event identifier. Repeated requests with the same identifier create only one thread, which makes provider retries safe. Without this header, every request is treated as a distinct delivery so matching error payloads are not accidentally dropped.
+Send an `X-T3-Delivery-ID` header containing the source system's stable event identifier. Repeated requests with the same identifier create only one thread for three days, which makes provider retries safe while allowing persistent errors to create a fresh thread after the window expires. Without this header, every request is treated as a distinct delivery so matching error payloads are not accidentally dropped.
 
 The prompt prefix is trusted configuration, but the request body is not. T3 Code explicitly tells the agent to use the body as diagnostic evidence and not to follow instructions found inside it.
 

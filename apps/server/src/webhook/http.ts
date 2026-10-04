@@ -104,12 +104,12 @@ export const webhookRouteLayer = HttpRouter.add(
           receivedAt,
           payloadBytes,
         });
-        const delivery = yield* runner.runDelivery({
+        yield* runner.startDelivery({
           ...claimed,
           payload: normalizedResult.success,
           contentType,
         });
-        return { delivery, duplicate: !claimed.claimed };
+        return { delivery: claimed.delivery, duplicate: !claimed.claimed };
       }),
     );
 

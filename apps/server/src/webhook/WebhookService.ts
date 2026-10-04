@@ -694,17 +694,29 @@ const make = Effect.gen(function* () {
               message: "Webhook not found.",
             });
           }
-          const rows = yield* sql<{ readonly id: string }>`
-            INSERT OR IGNORE INTO webhook_deliveries (
-              delivery_id, webhook_id, thread_id, status, received_at,
-              definition_revision, payload_bytes, detail, dedupe_key
+          const claims = yield* sql<{ readonly id: string }>`
+            INSERT INTO webhook_delivery_dedupe (
+              webhook_id, dedupe_key, delivery_id, expires_at
             ) VALUES (
-              ${freshDeliveryId}, ${input.webhookId}, NULL, 'launching', ${input.receivedAt},
-              ${webhook.revision}, ${input.payloadBytes}, NULL, ${input.dedupeKey}
+              ${input.webhookId}, ${input.dedupeKey}, ${freshDeliveryId},
+              strftime('%Y-%m-%dT%H:%M:%fZ', ${input.receivedAt}, '+3 days')
             )
+            ON CONFLICT (webhook_id, dedupe_key) DO UPDATE SET
+              delivery_id = excluded.delivery_id,
+              expires_at = excluded.expires_at
+            WHERE julianday(webhook_delivery_dedupe.expires_at) <= julianday(${input.receivedAt})
             RETURNING delivery_id AS id
           `;
-          if (rows.length > 0) {
+          if (claims.length > 0) {
+            yield* sql`
+              INSERT INTO webhook_deliveries (
+                delivery_id, webhook_id, thread_id, status, received_at,
+                definition_revision, payload_bytes, detail, dedupe_key
+              ) VALUES (
+                ${freshDeliveryId}, ${input.webhookId}, NULL, 'launching', ${input.receivedAt},
+                ${webhook.revision}, ${input.payloadBytes}, NULL, ${input.dedupeKey}
+              )
+            `;
             return {
               deliveryId: freshDeliveryId,
               claimed: true,
@@ -716,9 +728,15 @@ const make = Effect.gen(function* () {
             readonly storedStatus: string;
             readonly threadId: string | null;
           }>`
-            SELECT delivery_id AS id, status AS "storedStatus", thread_id AS "threadId"
-            FROM webhook_deliveries
-            WHERE webhook_id = ${input.webhookId} AND dedupe_key = ${input.dedupeKey}
+            SELECT
+              deliveries.delivery_id AS id,
+              deliveries.status AS "storedStatus",
+              deliveries.thread_id AS "threadId"
+            FROM webhook_delivery_dedupe AS dedupe
+            JOIN webhook_deliveries AS deliveries
+              ON deliveries.delivery_id = dedupe.delivery_id
+            WHERE dedupe.webhook_id = ${input.webhookId}
+              AND dedupe.dedupe_key = ${input.dedupeKey}
             LIMIT 1
           `;
           const row = existing[0];

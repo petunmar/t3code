@@ -816,7 +816,7 @@ export function EnvironmentWebhooks({
         />
         <SettingsRow
           title="Retry safe"
-          description="Set X-T3-Delivery-ID to a stable event ID so provider retries create only one thread. Without it, every request is a new delivery."
+          description="Set X-T3-Delivery-ID to a stable event ID so provider retries create only one thread for three days. Later occurrences create a fresh thread; without the header, every request is a new delivery."
         />
         <SettingsRow
           title="PostHog errors"

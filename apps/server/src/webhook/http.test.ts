@@ -65,7 +65,7 @@ it.effect("rejects invalid JSON but accepts plain text", () =>
   }),
 );
 
-it.effect("accepts a secret URL and launches the claimed JSON delivery", () =>
+it.effect("accepts a secret URL and starts the claimed JSON delivery in the background", () =>
   Effect.scoped(
     Effect.gen(function* () {
       const launches: Array<WebhookRunner.RunWebhookDeliveryInput> = [];
@@ -80,9 +80,9 @@ it.effect("accepts a secret URL and launches the claimed JSON delivery", () =>
           claimDelivery: () => Effect.succeed({ webhook, delivery, claimed: true }),
         }),
         Layer.mock(WebhookRunner.WebhookRunner)({
-          runDelivery: (input) => {
+          startDelivery: (input) => {
             launches.push(input);
-            return Effect.succeed(delivery);
+            return Effect.void;
           },
         }),
       );
