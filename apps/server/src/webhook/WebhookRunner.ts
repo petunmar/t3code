@@ -20,8 +20,8 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 
-import * as BootstrapTurnLauncher from "../orchestration/BootstrapTurnLauncher.ts";
-import * as ProjectionSnapshotQuery from "../orchestration/Services/ProjectionSnapshotQuery.ts";
+import * as ThreadLaunchService from "../orchestration-v2/ThreadLaunchService.ts";
+import * as ProjectService from "../project/ProjectService.ts";
 import * as WebhookService from "./WebhookService.ts";
 
 const isWebhookRpcError = Schema.is(WebhookRpcError);
@@ -71,8 +71,8 @@ export interface RunWebhookDeliveryInput {
 
 const make = Effect.gen(function* () {
   const service = yield* WebhookService.WebhookService;
-  const launcher = yield* BootstrapTurnLauncher.BootstrapTurnLauncher;
-  const projection = yield* ProjectionSnapshotQuery.ProjectionSnapshotQuery;
+  const launcher = yield* ThreadLaunchService.ThreadLaunchService;
+  const projection = yield* ProjectService.ProjectService;
   const crypto = yield* Crypto.Crypto;
   const deliveryScope = yield* Scope.make("sequential");
   yield* Effect.addFinalizer(() => Scope.close(deliveryScope, Exit.void));
@@ -96,66 +96,57 @@ const make = Effect.gen(function* () {
       const threadId = ThreadId.make(yield* uuid);
       const messageId = MessageId.make(yield* uuid);
       const commandId = CommandId.make(`webhook:${input.delivery.id}:${yield* uuid}`);
-      const projectOption = yield* projection.getProjectShellById(
-        ProjectId.make(input.webhook.projectId),
-      );
+      const projectOption = yield* projection.getShell(ProjectId.make(input.webhook.projectId));
       if (Option.isNone(projectOption)) {
         return yield* new WebhookRpcError({
           code: "invalid-configuration",
           message: "The selected project no longer exists in this environment.",
         });
       }
-      const project = projectOption.value;
       const workspace = input.webhook.workspace;
-      const temporaryBranch = buildTemporaryWorktreeBranchName(() => threadId);
-      const branch = workspace.kind === "new-worktree" ? temporaryBranch : workspace.expectedBranch;
-      const worktreePath = workspace.kind === "existing-worktree" ? workspace.worktreePath : null;
-      const prepareWorktree =
+      const workspaceStrategy: ThreadLaunchService.ThreadLaunchWorkspaceStrategy =
         workspace.kind === "new-worktree"
           ? {
-              projectCwd: project.workspaceRoot,
-              baseBranch: workspace.fromBranch,
-              branch: temporaryBranch,
-              ...(workspace.startFromOrigin ? { startFromOrigin: true } : {}),
+              type: "worktree",
+              baseRef: workspace.fromBranch,
+              branch: buildTemporaryWorktreeBranchName(() => threadId),
+              startFromOrigin: workspace.startFromOrigin,
             }
-          : undefined;
+          : workspace.kind === "existing-worktree"
+            ? {
+                type: "existing_worktree",
+                worktreePath: workspace.worktreePath,
+                ...(workspace.expectedBranch === null ? {} : { branch: workspace.expectedBranch }),
+              }
+            : {
+                type: "root",
+                ...(workspace.expectedBranch === null ? {} : { branch: workspace.expectedBranch }),
+              };
       const title = formatDeliveryTitle(input.webhook.name, input.delivery.receivedAt);
 
-      yield* launcher.dispatch({
-        type: "thread.turn.start",
+      yield* launcher.launch({
         commandId,
         threadId,
-        message: {
+        projectId: input.webhook.projectId,
+        title,
+        modelSelection: input.webhook.modelSelection,
+        runtimeMode: input.webhook.runtimeMode,
+        interactionMode: input.webhook.interactionMode,
+        workspaceStrategy,
+        initialMessage: {
           messageId,
-          role: "user",
           text: formatWebhookPrompt(input.webhook.promptPrefix, input.payload, input.contentType),
           attachments: [],
         },
-        modelSelection: input.webhook.modelSelection,
-        titleSeed: input.webhook.name,
-        runtimeMode: input.webhook.runtimeMode,
-        interactionMode: input.webhook.interactionMode,
-        bootstrap: {
-          createThread: {
-            projectId: input.webhook.projectId,
-            title,
-            modelSelection: input.webhook.modelSelection,
-            runtimeMode: input.webhook.runtimeMode,
-            interactionMode: input.webhook.interactionMode,
-            origin: {
-              type: "webhook",
-              webhookId: WebhookId.make(input.webhook.id),
-              webhookDeliveryId: WebhookDeliveryId.make(input.delivery.id),
-              webhookName: input.webhook.name,
-              receivedAt: input.delivery.receivedAt,
-            },
-            branch,
-            worktreePath,
-            createdAt: input.delivery.receivedAt,
-          },
-          ...(prepareWorktree === undefined ? {} : { prepareWorktree, runSetupScript: true }),
+        createdBy: "system",
+        creationSource: "server",
+        origin: {
+          type: "webhook",
+          webhookId: WebhookId.make(input.webhook.id),
+          webhookDeliveryId: WebhookDeliveryId.make(input.delivery.id),
+          webhookName: input.webhook.name,
+          receivedAt: input.delivery.receivedAt,
         },
-        createdAt: input.delivery.receivedAt,
       });
 
       return yield* service.linkDelivery({

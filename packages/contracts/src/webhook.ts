@@ -11,7 +11,8 @@ import {
   WebhookDeliveryId,
   WebhookId,
 } from "./baseSchemas.ts";
-import { ModelSelection, ProviderInteractionMode, RuntimeMode } from "./orchestration.ts";
+import { ModelSelection } from "./modelSelection.ts";
+import { ProviderInteractionMode, RuntimeMode } from "./providerPolicy.ts";
 
 export const WEBHOOK_WS_METHODS = {
   getSnapshot: "webhook.getSnapshot",
@@ -147,7 +148,7 @@ export const WebhookDeliveriesPage = Schema.Struct({
 });
 export type WebhookDeliveriesPage = typeof WebhookDeliveriesPage.Type;
 
-export class WebhookRpcError extends Schema.TaggedErrorClass<WebhookRpcError>()("WebhookRpcError", {
+export class WebhookRpcError extends Schema.TaggedError<WebhookRpcError>()("WebhookRpcError", {
   code: Schema.Literals([
     "not-found",
     "conflict",

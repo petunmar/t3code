@@ -25,14 +25,14 @@ import * as Context from "effect/Context";
 import * as Crypto from "effect/Crypto";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
-import * as Encoding from "effect/Encoding";
+import * as Base64Url from "effect/encoding/Base64Url";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as PubSub from "effect/PubSub";
 import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
 import * as Stream from "effect/Stream";
-import * as SqlClient from "effect/unstable/sql/SqlClient";
+import * as SqlClient from "effect/sql/SqlClient";
 
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import { timingSafeEqualBase64Url } from "../auth/utils.ts";
@@ -161,7 +161,7 @@ const make = Effect.gen(function* () {
   });
 
   const randomToken = crypto.randomBytes(32).pipe(
-    Effect.map(Encoding.encodeBase64Url),
+    Effect.map(Base64Url.encode),
     Effect.mapError(() => storageError("Failed to generate a Webhook secret.")),
   );
 
@@ -169,7 +169,7 @@ const make = Effect.gen(function* () {
     const digest = yield* crypto
       .digest("SHA-256", textEncoder.encode(token))
       .pipe(Effect.mapError(() => storageError("Failed to hash a Webhook secret.")));
-    return Encoding.encodeBase64Url(digest);
+    return Base64Url.encode(digest);
   });
 
   const getGlobalRevision = Effect.fn("WebhookService.getGlobalRevision")(function* () {
@@ -331,18 +331,14 @@ const make = Effect.gen(function* () {
         deliveries.received_at AS "receivedAt",
         deliveries.definition_revision AS "definitionRevision",
         deliveries.payload_bytes AS "payloadBytes",
-        COALESCE(deliveries.detail, sessions.last_error) AS detail,
-        sessions.status AS "sessionStatus",
-        turns.state AS "turnState",
+        COALESCE(deliveries.detail, threads.last_error) AS detail,
+        threads.session_status AS "sessionStatus",
+        threads.turn_state AS "turnState",
         threads.pending_approval_count AS "pendingApprovalCount",
         threads.pending_user_input_count AS "pendingUserInputCount",
         threads.deleted_at AS "threadDeletedAt"
       FROM webhook_deliveries AS deliveries
-      LEFT JOIN projection_threads AS threads ON threads.thread_id = deliveries.thread_id
-      LEFT JOIN projection_thread_sessions AS sessions ON sessions.thread_id = deliveries.thread_id
-      LEFT JOIN projection_turns AS turns
-        ON turns.thread_id = deliveries.thread_id
-       AND turns.turn_id = threads.latest_turn_id
+      LEFT JOIN fork_trigger_thread_status AS threads ON threads.thread_id = deliveries.thread_id
       WHERE deliveries.webhook_id = ${input.webhookId}
         AND (${input.deliveryId ?? null} IS NULL OR deliveries.delivery_id = ${
           input.deliveryId ?? null

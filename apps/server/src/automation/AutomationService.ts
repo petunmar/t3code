@@ -9,7 +9,7 @@ import * as Path from "effect/Path";
 import * as PubSub from "effect/PubSub";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
-import * as SqlClient from "effect/unstable/sql/SqlClient";
+import * as SqlClient from "effect/sql/SqlClient";
 import {
   AutomationDetail,
   AutomationId,
@@ -349,18 +349,14 @@ const make = Effect.gen(function* () {
             runs.missed_occurrences AS "missedOccurrences",
             runs.missed_occurrences_exact AS "missedOccurrencesExact",
             runs.definition_revision AS "definitionRevision",
-            COALESCE(runs.detail, sessions.last_error) AS detail,
-            sessions.status AS "sessionStatus",
-            turns.state AS "turnState",
+            COALESCE(runs.detail, threads.last_error) AS detail,
+            threads.session_status AS "sessionStatus",
+            threads.turn_state AS "turnState",
             threads.pending_approval_count AS "pendingApprovalCount",
             threads.pending_user_input_count AS "pendingUserInputCount",
             threads.deleted_at AS "threadDeletedAt"
           FROM automation_runs AS runs
-          LEFT JOIN projection_threads AS threads ON threads.thread_id = runs.thread_id
-          LEFT JOIN projection_thread_sessions AS sessions ON sessions.thread_id = runs.thread_id
-          LEFT JOIN projection_turns AS turns
-            ON turns.thread_id = runs.thread_id
-           AND turns.turn_id = threads.latest_turn_id
+          LEFT JOIN fork_trigger_thread_status AS threads ON threads.thread_id = runs.thread_id
           WHERE runs.automation_id = ${input.automationId}
             AND (${input.runId ?? null} IS NULL OR runs.run_id = ${input.runId ?? null})
             AND (${input.occurrenceKey ?? null} IS NULL OR runs.occurrence_key = ${input.occurrenceKey ?? null})
@@ -373,10 +369,10 @@ const make = Effect.gen(function* () {
                   runs.thread_id IS NULL
                   OR COALESCE(threads.pending_approval_count, 0) > 0
                   OR COALESCE(threads.pending_user_input_count, 0) > 0
-                  OR sessions.status IN ('starting', 'running')
+                  OR threads.session_status IN ('starting', 'running')
                   OR (
-                    COALESCE(turns.state, '') NOT IN ('error', 'interrupted', 'completed')
-                    AND COALESCE(sessions.status, '') NOT IN ('error', 'interrupted', 'idle', 'ready', 'stopped')
+                    COALESCE(threads.turn_state, '') NOT IN ('error', 'interrupted', 'completed')
+                    AND COALESCE(threads.session_status, '') NOT IN ('error', 'interrupted', 'idle', 'ready', 'stopped')
                     AND threads.deleted_at IS NULL
                   )
                 )

@@ -1,6 +1,6 @@
 # Webhooks
 
-Webhooks start a fresh agent thread from an HTTP `POST` request. Open **Settings → Automations → Webhooks** to create and manage them.
+Webhooks start a fresh agent thread from an HTTP `POST` request. Open **Settings → Automations & Webhooks → Webhooks** to create and manage them.
 
 A webhook saves the project, prompt prefix, provider and model, access mode, interaction mode, and workspace choice. When a request arrives, T3 Code places the prompt prefix first and appends the request body in a clearly marked untrusted-data envelope. JSON and plain-text bodies are supported up to 512 KiB.
 

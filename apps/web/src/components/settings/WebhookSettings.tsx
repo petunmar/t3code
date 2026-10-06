@@ -18,7 +18,7 @@ import { createModelSelection } from "@t3tools/shared/model";
 import { useNavigate } from "@tanstack/react-router";
 import * as Cause from "effect/Cause";
 import * as Option from "effect/Option";
-import { AsyncResult } from "effect/unstable/reactivity";
+import { AsyncResult } from "effect/reactivity";
 import {
   CheckIcon,
   CopyIcon,
@@ -50,7 +50,7 @@ import { useThreadShells } from "../../state/entities";
 import { EMPTY_SERVER_PROVIDERS, serverEnvironment } from "../../state/server";
 import { formatRelativeTimeLabel } from "../../timestampFormat";
 import { useAtomCommand } from "../../state/use-atom-command";
-import { ComposerFooterModeControls } from "../chat/ChatComposer";
+import { ComposerFooterModeControls, runtimeModeOptions } from "../chat/ChatComposer";
 import { ProviderModelPicker } from "../chat/ProviderModelPicker";
 import { TraitsPicker } from "../chat/TraitsPicker";
 import { Button } from "../ui/button";
@@ -266,7 +266,7 @@ function WebhookEditor({
             Every accepted request starts a fresh thread with its body appended to the prompt.
           </DialogDescription>
         </DialogHeader>
-        <DialogPanel className="grid gap-6">
+        <DialogPanel className="grid">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Name">
               <Input
@@ -326,12 +326,12 @@ function WebhookEditor({
                 lockedProvider={null}
                 instanceEntries={instanceEntries}
                 modelOptionsByInstance={modelOptionsByInstance}
-                triggerVariant="outline"
                 onInstanceModelChange={(instanceId, model) =>
                   set("modelSelection", createModelSelection(instanceId, model))
                 }
               />
               <TraitsPicker
+                planModeEnabled={settings.planModeEnabled}
                 provider={selectedProvider}
                 instanceId={draft.modelSelection.instanceId}
                 models={selectedEntry?.models ?? []}
@@ -340,7 +340,6 @@ function WebhookEditor({
                 onPromptChange={(promptPrefix) => set("promptPrefix", promptPrefix)}
                 modelOptions={draft.modelSelection.options}
                 allowPromptInjectedEffort
-                triggerVariant="outline"
                 onModelOptionsChange={(options) =>
                   set(
                     "modelSelection",
@@ -356,6 +355,7 @@ function WebhookEditor({
                 showInteractionModeToggle={settings.planModeEnabled}
                 interactionMode={draft.interactionMode}
                 runtimeMode={draft.runtimeMode}
+                runtimeModeOptions={runtimeModeOptions}
                 onToggleInteractionMode={() =>
                   set("interactionMode", draft.interactionMode === "plan" ? "default" : "plan")
                 }
@@ -530,7 +530,7 @@ function DeliveryHistoryDialog({
             Retries with the same delivery identifier appear only once.
           </DialogDescription>
         </DialogHeader>
-        <DialogPanel className="grid gap-1">
+        <DialogPanel className="grid">
           {page === null ? (
             <div className="flex min-h-32 items-center justify-center">
               {failure ? (
@@ -578,24 +578,12 @@ function liveDeliveryStatus(
   const thread = threadById.get(threadId);
   if (!thread) return persisted;
   if (thread.hasPendingApprovals || thread.hasPendingUserInput) return "waiting";
-  if (
-    thread.latestTurn?.state === "running" ||
-    thread.session?.status === "starting" ||
-    thread.session?.status === "running" ||
-    thread.backgroundLiveness === "working" ||
-    thread.backgroundLiveness === "monitoring"
-  )
+  if (["preparing", "queued", "starting", "running"].includes(thread.latestRun?.status ?? "idle"))
     return "running";
-  if (thread.latestTurn?.state === "error" || thread.session?.status === "error") return "failed";
-  if (thread.latestTurn?.state === "interrupted" || thread.session?.status === "interrupted")
+  if ((thread.latestRun?.status ?? "idle") === "failed") return "failed";
+  if (["interrupted", "cancelled", "rolled_back"].includes(thread.latestRun?.status ?? "idle"))
     return "interrupted";
-  if (
-    thread.latestTurn?.state === "completed" ||
-    thread.session?.status === "idle" ||
-    thread.session?.status === "ready" ||
-    thread.session?.status === "stopped"
-  )
-    return "completed";
+  if (["completed", "idle"].includes(thread.latestRun?.status ?? "idle")) return "completed";
   return persisted;
 }
 
@@ -691,7 +679,7 @@ export function EnvironmentWebhooks({
       <SettingsSection
         id="webhooks"
         title="Webhooks"
-        icon={<WebhookIcon className="size-5 text-violet-500" />}
+        icon={<WebhookIcon className="size-5 text-info" />}
         headerAction={
           <Button size="sm" onClick={() => setCreating(true)} disabled={projects.length === 0}>
             <PlusIcon className="size-4" /> New webhook
@@ -728,7 +716,7 @@ export function EnvironmentWebhooks({
                   <span className="inline-flex min-w-0 items-center gap-2">
                     <span className="truncate">{webhook.name}</span>
                     {!webhook.enabled ? (
-                      <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                      <span className="rounded-full bg-muted px-1.5 py-0.5 text-3xs font-medium uppercase tracking-wide text-muted-foreground">
                         Paused
                       </span>
                     ) : null}

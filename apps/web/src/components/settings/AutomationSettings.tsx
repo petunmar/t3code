@@ -15,13 +15,13 @@ import {
   ProviderDriverKind,
   type ProviderInteractionMode,
   type RuntimeMode,
-  type UploadChatAttachment,
+  type AutomationUploadChatAttachment as UploadChatAttachment,
 } from "@t3tools/contracts";
 import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
 import { createModelSelection } from "@t3tools/shared/model";
 import * as Cause from "effect/Cause";
 import * as Option from "effect/Option";
-import { AsyncResult } from "effect/unstable/reactivity";
+import { AsyncResult } from "effect/reactivity";
 import {
   CalendarClockIcon,
   Clock3Icon,
@@ -56,7 +56,7 @@ import { formatRelativeTimeLabel } from "../../timestampFormat";
 import { readFileAsDataUrl } from "../ChatView.logic";
 import { randomUUID } from "../../lib/utils";
 import { useAtomCommand } from "../../state/use-atom-command";
-import { ComposerFooterModeControls } from "../chat/ChatComposer";
+import { ComposerFooterModeControls, runtimeModeOptions } from "../chat/ChatComposer";
 import { ProviderModelPicker } from "../chat/ProviderModelPicker";
 import { TraitsPicker } from "../chat/TraitsPicker";
 import { Button } from "../ui/button";
@@ -237,27 +237,12 @@ function liveRunStatus(
   const thread = threadById.get(threadId);
   if (!thread) return persisted;
   if (thread.hasPendingApprovals || thread.hasPendingUserInput) return "waiting";
-  if (
-    thread.latestTurn?.state === "running" ||
-    thread.session?.status === "starting" ||
-    thread.session?.status === "running" ||
-    thread.backgroundLiveness === "working" ||
-    thread.backgroundLiveness === "monitoring"
-  ) {
+  if (["preparing", "queued", "starting", "running"].includes(thread.latestRun?.status ?? "idle"))
     return "running";
-  }
-  if (thread.latestTurn?.state === "error" || thread.session?.status === "error") return "failed";
-  if (thread.latestTurn?.state === "interrupted" || thread.session?.status === "interrupted") {
+  if ((thread.latestRun?.status ?? "idle") === "failed") return "failed";
+  if (["interrupted", "cancelled", "rolled_back"].includes(thread.latestRun?.status ?? "idle"))
     return "interrupted";
-  }
-  if (
-    thread.latestTurn?.state === "completed" ||
-    thread.session?.status === "idle" ||
-    thread.session?.status === "ready" ||
-    thread.session?.status === "stopped"
-  ) {
-    return "completed";
-  }
+  if (["completed", "idle"].includes(thread.latestRun?.status ?? "idle")) return "completed";
   return persisted;
 }
 
@@ -431,7 +416,7 @@ function AutomationEditor({
             Each occurrence starts a fresh thread with this configuration. Runs never overlap.
           </DialogDescription>
         </DialogHeader>
-        <DialogPanel className="grid gap-6">
+        <DialogPanel className="grid">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Name">
               <Input
@@ -537,12 +522,12 @@ function AutomationEditor({
                 lockedProvider={null}
                 instanceEntries={instanceEntries}
                 modelOptionsByInstance={modelOptionsByInstance}
-                triggerVariant="outline"
                 onInstanceModelChange={(instanceId, model) =>
                   set("modelSelection", createModelSelection(instanceId, model))
                 }
               />
               <TraitsPicker
+                planModeEnabled={settings.planModeEnabled}
                 provider={selectedProvider}
                 instanceId={draft.modelSelection.instanceId}
                 models={selectedEntry?.models ?? []}
@@ -551,7 +536,6 @@ function AutomationEditor({
                 onPromptChange={(prompt) => set("prompt", prompt)}
                 modelOptions={draft.modelSelection.options}
                 allowPromptInjectedEffort
-                triggerVariant="outline"
                 onModelOptionsChange={(options) =>
                   set(
                     "modelSelection",
@@ -567,6 +551,7 @@ function AutomationEditor({
                 showInteractionModeToggle={settings.planModeEnabled}
                 interactionMode={draft.interactionMode}
                 runtimeMode={draft.runtimeMode}
+                runtimeModeOptions={runtimeModeOptions}
                 onToggleInteractionMode={() =>
                   set("interactionMode", draft.interactionMode === "plan" ? "default" : "plan")
                 }
@@ -640,7 +625,6 @@ function AutomationEditor({
                 value={draft.cronExpression}
                 onChange={(event) => set("cronExpression", event.target.value)}
                 placeholder={DEFAULT_CRON}
-                className="font-mono"
               />
             </Field>
             <Field label="Time zone" hint="Use an IANA name such as Europe/London.">
@@ -762,7 +746,7 @@ function RunHistoryDialog({
           <DialogTitle>{automation.name} history</DialogTitle>
           <DialogDescription>Every occurrence gets its own fresh thread.</DialogDescription>
         </DialogHeader>
-        <DialogPanel className="grid gap-1">
+        <DialogPanel className="grid">
           {page === null ? (
             <div className="flex min-h-32 items-center justify-center">
               {failure ? (
@@ -878,7 +862,7 @@ function EnvironmentAutomations({
       <SettingsSection
         id="automations"
         title="Automations"
-        icon={<CalendarClockIcon className="size-5 text-blue-500" />}
+        icon={<CalendarClockIcon className="size-5 text-info" />}
         headerAction={
           <Button size="sm" onClick={() => setCreating(true)} disabled={projects.length === 0}>
             <PlusIcon className="size-4" /> New automation
@@ -916,11 +900,11 @@ function EnvironmentAutomations({
                   <span className="inline-flex min-w-0 items-center gap-2">
                     <span className="truncate">{automation.name}</span>
                     {!automation.enabled ? (
-                      <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                      <span className="rounded-full bg-muted px-1.5 py-0.5 text-3xs font-medium uppercase tracking-wide text-muted-foreground">
                         Paused
                       </span>
                     ) : active ? (
-                      <span className="rounded-full bg-blue-500/12 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-blue-600 dark:text-blue-400">
+                      <span className="rounded-full bg-info/12 px-1.5 py-0.5 text-3xs font-medium uppercase tracking-wide text-info-foreground dark:text-info-foreground">
                         Running
                       </span>
                     ) : null}
@@ -1123,7 +1107,7 @@ export function AutomationSettings() {
       ) : (
         <SettingsSection
           title="Automations"
-          icon={<CalendarClockIcon className="size-5 text-blue-500" />}
+          icon={<CalendarClockIcon className="size-5 text-info" />}
         >
           <SettingsRow
             title="No compatible environment"

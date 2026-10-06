@@ -1,6 +1,5 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import {
-  type OrchestrationCommand,
   ProjectId,
   ProviderInstanceId,
   WebhookDeliveryId,
@@ -14,12 +13,12 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 
-import * as BootstrapTurnLauncher from "../orchestration/BootstrapTurnLauncher.ts";
-import * as ProjectionSnapshotQuery from "../orchestration/Services/ProjectionSnapshotQuery.ts";
+import * as ThreadLaunchService from "../orchestration-v2/ThreadLaunchService.ts";
+import * as ProjectService from "../project/ProjectService.ts";
 import * as WebhookRunner from "./WebhookRunner.ts";
 import * as WebhookService from "./WebhookService.ts";
 
-type BootstrapTurnStart = Extract<OrchestrationCommand, { type: "thread.turn.start" }>;
+type TriggerThreadLaunch = ThreadLaunchService.ThreadLaunchInput;
 
 const webhook: WebhookDetail = {
   id: WebhookId.make("posthog"),
@@ -84,15 +83,15 @@ it.effect("starts delivery launch without tying it to the caller fiber", () =>
         Layer.mock(WebhookService.WebhookService)({
           linkDelivery: () => Deferred.succeed(deliveryLinked, undefined).pipe(Effect.as(delivery)),
         }),
-        Layer.mock(BootstrapTurnLauncher.BootstrapTurnLauncher)({
-          dispatch: () =>
+        Layer.mock(ThreadLaunchService.ThreadLaunchService)({
+          launch: () =>
             Deferred.succeed(launchStarted, undefined).pipe(
               Effect.andThen(Deferred.await(releaseLaunch)),
-              Effect.as({ sequence: 1 }),
+              Effect.as(null!),
             ),
         }),
-        Layer.mock(ProjectionSnapshotQuery.ProjectionSnapshotQuery)({
-          getProjectShellById: () =>
+        Layer.mock(ProjectService.ProjectService)({
+          getShell: () =>
             Effect.succeed(
               Option.some({
                 id: webhook.projectId,
@@ -127,7 +126,7 @@ it.effect("starts delivery launch without tying it to the caller fiber", () =>
 it.effect("uses a fresh worktree branch when retrying a failed delivery", () =>
   Effect.scoped(
     Effect.gen(function* () {
-      let dispatched: BootstrapTurnStart | undefined;
+      let dispatched: TriggerThreadLaunch | undefined;
       const worktreeWebhook: WebhookDetail = {
         ...webhook,
         workspace: {
@@ -141,14 +140,14 @@ it.effect("uses a fresh worktree branch when retrying a failed delivery", () =>
         Layer.mock(WebhookService.WebhookService)({
           linkDelivery: () => Effect.succeed(delivery),
         }),
-        Layer.mock(BootstrapTurnLauncher.BootstrapTurnLauncher)({
-          dispatch: (command) => {
+        Layer.mock(ThreadLaunchService.ThreadLaunchService)({
+          launch: (command) => {
             dispatched = command;
-            return Effect.succeed({ sequence: 1 });
+            return Effect.succeed(null!);
           },
         }),
-        Layer.mock(ProjectionSnapshotQuery.ProjectionSnapshotQuery)({
-          getProjectShellById: () =>
+        Layer.mock(ProjectService.ProjectService)({
+          getShell: () =>
             Effect.succeed(
               Option.some({
                 id: webhook.projectId,
@@ -174,10 +173,10 @@ it.effect("uses a fresh worktree branch when retrying a failed delivery", () =>
         });
       }).pipe(Effect.provide(WebhookRunner.layer.pipe(Layer.provide(dependencies))));
 
-      const branch = dispatched?.bootstrap?.createThread?.branch;
-      expect(branch).toMatch(/^t3code\/[0-9a-f]{8}$/);
+      const branch = dispatched?.workspaceStrategy.branch;
+      expect(branch).toMatch(/^t3\/[0-9a-f]{8}$/);
       expect(branch).not.toBe(buildTemporaryWorktreeBranchName(() => delivery.id));
-      expect(dispatched?.bootstrap?.prepareWorktree?.branch).toBe(branch);
+      expect(dispatched?.workspaceStrategy.branch).toBe(branch);
     }),
   ),
 );

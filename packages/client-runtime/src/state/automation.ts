@@ -4,7 +4,7 @@ import {
   type AutomationStreamEvent,
 } from "@t3tools/contracts";
 import * as Stream from "effect/Stream";
-import { Atom } from "effect/unstable/reactivity";
+import { Atom } from "effect/reactivity";
 
 import type { EnvironmentRegistry } from "../connection/registry.ts";
 import {
@@ -74,7 +74,7 @@ export function createAutomationEnvironmentAtoms<R, E>(
       label: "environment-data:automation:changes",
       tag: AUTOMATION_WS_METHODS.subscribe,
       transform: (stream) =>
-        stream.pipe(Stream.scan(EMPTY_AUTOMATION_SNAPSHOT, applyAutomationStreamEvent)),
+        stream.pipe(Stream.scan(() => EMPTY_AUTOMATION_SNAPSHOT, applyAutomationStreamEvent)),
     }),
     detail: createEnvironmentRpcQueryAtomFamily(runtime, {
       label: "environment-data:automation:detail",

@@ -1,11 +1,11 @@
 import { WebhookId, WebhookRpcError } from "@t3tools/contracts";
+import * as ByteSize from "effect/ByteSize";
 import * as Crypto from "effect/Crypto";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
-import * as Encoding from "effect/Encoding";
-import * as FileSystem from "effect/FileSystem";
+import * as Base64Url from "effect/encoding/Base64Url";
 import * as Schema from "effect/Schema";
-import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http";
+import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
 
 import * as WebhookRunner from "./WebhookRunner.ts";
 import * as WebhookService from "./WebhookService.ts";
@@ -57,7 +57,7 @@ export const webhookRouteLayer = HttpRouter.add(
       request.text.pipe(
         Effect.provideService(
           HttpServerRequest.MaxBodySize,
-          FileSystem.Size(WEBHOOK_MAX_BODY_BYTES),
+          ByteSize.bytes(WEBHOOK_MAX_BODY_BYTES),
         ),
       ),
     );
@@ -100,7 +100,7 @@ export const webhookRouteLayer = HttpRouter.add(
         const webhook = yield* service.authorizeDelivery(WebhookId.make(webhookId), token);
         const claimed = yield* service.claimDelivery({
           webhookId: webhook.id,
-          dedupeKey: Encoding.encodeBase64Url(dedupeDigest),
+          dedupeKey: Base64Url.encode(dedupeDigest),
           receivedAt,
           payloadBytes,
         });

@@ -3,10 +3,10 @@ import { AutomationId, ProjectId, ProviderInstanceId } from "@t3tools/contracts"
 import { expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as SqlClient from "effect/unstable/sql/SqlClient";
+import * as SqlClient from "effect/sql/SqlClient";
 
 import * as ServerConfig from "../config.ts";
-import { SqlitePersistenceMemory } from "../persistence/Layers/Sqlite.ts";
+import { layerMemory as SqlitePersistenceMemory } from "../persistence/Sqlite.ts";
 import * as AutomationService from "./AutomationService.ts";
 
 const AutomationServiceTestLayer = AutomationService.AutomationServiceLive.pipe(

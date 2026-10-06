@@ -12,11 +12,11 @@ import {
 } from "./baseSchemas.ts";
 import {
   ChatAttachment,
-  ModelSelection,
-  ProviderInteractionMode,
-  RuntimeMode,
-  UploadChatAttachment,
-} from "./orchestration.ts";
+  UploadChatImageAttachment,
+  PROVIDER_SEND_TURN_MAX_FILE_BYTES,
+} from "./chatAttachment.ts";
+import { ModelSelection } from "./modelSelection.ts";
+import { ProviderInteractionMode, RuntimeMode } from "./providerPolicy.ts";
 
 export const AUTOMATION_WS_METHODS = {
   getSnapshot: "automation.getSnapshot",
@@ -56,10 +56,24 @@ export const AutomationWorkspace = Schema.Union([
 ]);
 export type AutomationWorkspace = typeof AutomationWorkspace.Type;
 
+export const AutomationUploadChatAttachment = Schema.Union([
+  UploadChatImageAttachment,
+  Schema.Struct({
+    type: Schema.Literal("file"),
+    name: TrimmedNonEmptyString.check(Schema.isMaxLength(255)),
+    mimeType: TrimmedNonEmptyString.check(Schema.isMaxLength(100)),
+    sizeBytes: NonNegativeInt.check(Schema.isLessThanOrEqualTo(PROVIDER_SEND_TURN_MAX_FILE_BYTES)),
+    dataUrl: TrimmedNonEmptyString.check(
+      Schema.isMaxLength(Math.ceil(PROVIDER_SEND_TURN_MAX_FILE_BYTES / 3) * 4 + 256),
+    ),
+  }),
+]);
+export type AutomationUploadChatAttachment = typeof AutomationUploadChatAttachment.Type;
+
 export const AutomationAttachmentWrite = Schema.Union([
   Schema.Struct({
     kind: Schema.Literal("upload"),
-    attachment: UploadChatAttachment,
+    attachment: AutomationUploadChatAttachment,
   }),
   Schema.Struct({
     kind: Schema.Literal("retained"),
@@ -238,7 +252,7 @@ export const AutomationRunsPage = Schema.Struct({
 });
 export type AutomationRunsPage = typeof AutomationRunsPage.Type;
 
-export class AutomationRpcError extends Schema.TaggedErrorClass<AutomationRpcError>()(
+export class AutomationRpcError extends Schema.TaggedError<AutomationRpcError>()(
   "AutomationRpcError",
   {
     code: Schema.Literals([

@@ -1,6 +1,6 @@
 # Automations
 
-Automations start a fresh agent thread on a recurring schedule. Open **Settings → Automations** to create and manage them.
+Automations start a fresh agent thread on a recurring schedule. Open **Settings → Automations & Webhooks** to create and manage them.
 
 An automation saves the same choices available when starting a normal chat:
 

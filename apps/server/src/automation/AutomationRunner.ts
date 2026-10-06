@@ -19,8 +19,8 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
-import * as BootstrapTurnLauncher from "../orchestration/BootstrapTurnLauncher.ts";
-import * as ProjectionSnapshotQuery from "../orchestration/Services/ProjectionSnapshotQuery.ts";
+import * as ThreadLaunchService from "../orchestration-v2/ThreadLaunchService.ts";
+import * as ProjectService from "../project/ProjectService.ts";
 import * as AutomationService from "./AutomationService.ts";
 
 const isAutomationRpcError = Schema.is(AutomationRpcError);
@@ -59,8 +59,8 @@ function launchError(cause: unknown): AutomationRpcError {
 
 const make = Effect.gen(function* () {
   const service = yield* AutomationService.AutomationService;
-  const launcher = yield* BootstrapTurnLauncher.BootstrapTurnLauncher;
-  const projection = yield* ProjectionSnapshotQuery.ProjectionSnapshotQuery;
+  const launcher = yield* ThreadLaunchService.ThreadLaunchService;
+  const projection = yield* ProjectService.ProjectService;
   const crypto = yield* Crypto.Crypto;
 
   const uuid = crypto.randomUUIDv4.pipe(
@@ -83,7 +83,7 @@ const make = Effect.gen(function* () {
       const threadId = ThreadId.make(yield* uuid);
       const messageId = MessageId.make(yield* uuid);
       const commandId = CommandId.make(`automation:${claimed.run.id}:${yield* uuid}`);
-      const projectOption = yield* projection.getProjectShellById(
+      const projectOption = yield* projection.getShell(
         ProjectId.make(claimed.automation.projectId),
       );
       if (Option.isNone(projectOption)) {
@@ -92,66 +92,57 @@ const make = Effect.gen(function* () {
           message: "The selected project no longer exists in this environment.",
         });
       }
-      const project = projectOption.value;
       const attachments = yield* service.materializeAttachments(claimed.automation, threadId);
       const workspace = claimed.automation.workspace;
-      const branch =
-        workspace.kind === "new-worktree"
-          ? buildTemporaryWorktreeBranchName(() => claimed.run.id)
-          : workspace.expectedBranch;
-      const worktreePath = workspace.kind === "existing-worktree" ? workspace.worktreePath : null;
-      const prepareWorktree =
+      const workspaceStrategy: ThreadLaunchService.ThreadLaunchWorkspaceStrategy =
         workspace.kind === "new-worktree"
           ? {
-              projectCwd: project.workspaceRoot,
-              baseBranch: workspace.fromBranch,
-              branch: buildTemporaryWorktreeBranchName(() => claimed.run.id),
-              ...(workspace.startFromOrigin ? { startFromOrigin: true } : {}),
+              type: "worktree",
+              baseRef: workspace.fromBranch,
+              branch: buildTemporaryWorktreeBranchName(() => threadId),
+              startFromOrigin: workspace.startFromOrigin,
             }
-          : undefined;
+          : workspace.kind === "existing-worktree"
+            ? {
+                type: "existing_worktree",
+                worktreePath: workspace.worktreePath,
+                ...(workspace.expectedBranch === null ? {} : { branch: workspace.expectedBranch }),
+              }
+            : {
+                type: "root",
+                ...(workspace.expectedBranch === null ? {} : { branch: workspace.expectedBranch }),
+              };
       const title = formatRunTitle(
         claimed.automation.name,
         occurrence.scheduledFor,
         claimed.automation.schedule.timeZone,
       );
 
-      yield* launcher.dispatch({
-        type: "thread.turn.start",
+      yield* launcher.launch({
         commandId,
         threadId,
-        message: {
-          messageId,
-          role: "user",
-          text: claimed.automation.message.text,
-          attachments,
-        },
+        projectId: claimed.automation.projectId,
+        title,
         modelSelection: claimed.automation.modelSelection,
-        titleSeed: claimed.automation.name,
         runtimeMode: claimed.automation.runtimeMode,
         interactionMode: claimed.automation.interactionMode,
-        bootstrap: {
-          createThread: {
-            projectId: claimed.automation.projectId,
-            title,
-            modelSelection: claimed.automation.modelSelection,
-            runtimeMode: claimed.automation.runtimeMode,
-            interactionMode: claimed.automation.interactionMode,
-            origin: {
-              type: "automation",
-              automationId: claimed.automation.id,
-              automationRunId: claimed.run.id,
-              automationName: claimed.automation.name,
-              trigger: occurrence.trigger,
-              scheduledFor: occurrence.scheduledFor,
-              timeZone: claimed.automation.schedule.timeZone,
-            },
-            branch,
-            worktreePath,
-            createdAt: occurrence.triggeredAt,
-          },
-          ...(prepareWorktree === undefined ? {} : { prepareWorktree, runSetupScript: true }),
+        workspaceStrategy,
+        initialMessage: {
+          messageId,
+          text: claimed.automation.message.text,
+          attachments: attachments,
         },
-        createdAt: occurrence.triggeredAt,
+        createdBy: "system",
+        creationSource: "server",
+        origin: {
+          type: "automation",
+          automationId: claimed.automation.id,
+          automationRunId: claimed.run.id,
+          automationName: claimed.automation.name,
+          trigger: occurrence.trigger,
+          scheduledFor: occurrence.scheduledFor,
+          timeZone: claimed.automation.schedule.timeZone,
+        },
       });
 
       return yield* service.linkRun({
